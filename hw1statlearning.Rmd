@@ -1,0 +1,347 @@
+---
+title: "Stat_Learning_HW1"
+output: html_document
+date: "2024-10-29"
+---
+
+# Data Set
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages("tidytuesdayR")
+install.packages("ggcorrplot")
+library(ggcorrplot)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r load-data}
+tuesdata <- tidytuesdayR::tt_load('2024-02-13')
+historical_spending <- tuesdata$historical_spending
+gifts_age <- tuesdata$gifts_age
+gifts_gender <- tuesdata$gifts_gender
+```
+
+```{r merge-data}
+# Rename columns in gifts_age and gifts_gender to avoid duplicates
+gifts_age <- gifts_age %>%
+  rename_with(~paste0("age_", .), -Age)  # Prefix age_ to all columns except Age
+
+gifts_gender <- gifts_gender %>%
+  rename_with(~paste0("gender_", .), -Gender)  # Prefix gender_ to all columns except Gender
+
+# Perform cross-joins
+# For historical spending and gifts by age
+combined_age <- historical_spending %>%
+  crossing(gifts_age)
+
+# For the combined dataset with gifts by gender
+combined_all <- combined_age %>%
+  crossing(gifts_gender)
+
+# View the final combined dataset
+head(combined_all)
+
+# Optionally, write the combined dataset to a CSV file
+write.csv(combined_all, "combined_dataset.csv", row.names = FALSE)
+
+```
+
+```{r save-csv}
+write.csv(combined_all, "/Users/avaexelbirt/Downloads/combined_all.csv", row.names = FALSE)
+
+```
+
+# Data Preprocessing
+
+```{r see-data}
+dim(combined_all)
+head(combined_all)
+```
+
+## Data Cleanup
+
+```{r data-cleanup}
+# Remove duplicate observations
+combined_data <- combined_all |>
+  distinct()  
+
+## Fix or remove typos or errors
+# Example: Check for invalid ages (e.g., negative ages)
+combined_data <- combined_data |>
+  filter(!is.na(Age) & Age != "" & Age > 0)
+
+## Outliers: Identify and remove or cap outliers
+# You can use IQR to detect outliers in numeric columns
+numeric_columns <- c("PerPerson", "Candy", "Flowers", "Jewelry", "GreetingCards", "EveningOut", "Clothing", "GiftCards")
+
+for (col in numeric_columns) {
+  Q1 <- quantile(combined_data[[col]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(combined_data[[col]], 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  combined_data <- combined_data |>
+    filter(combined_data[[col]] >= (Q1 - 1.5 * IQR) & combined_data[[col]] <= (Q3 + 1.5 * IQR))
+}
+
+# Visualize outliers for each numeric column
+ggplot(combined_data, aes_string(x = col)) +
+    geom_boxplot(fill = "lightblue", color = "blue", outlier.color = "red") +
+    labs(title = paste("Boxplot of", col), x = col) +
+    theme_minimal()
+
+
+
+
+## Missing values: Handle missing data
+# Impute missing values for numeric columns with the median
+combined_data <- combined_data |> 
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+# Handle missing values for categorical variables
+categorical_columns <- c("Gender", "Age")  # Add any other categorical variables as needed
+
+for (col in categorical_columns) {
+  mode_val <- as.character(names(sort(table(combined_data[[col]]), decreasing = TRUE)[1]))
+  combined_data[[col]] <- ifelse(is.na(combined_data[[col]]), mode_val, combined_data[[col]])
+}
+
+# Check the dimensions and summary of the cleaned data
+dim(combined_data)
+summary(combined_data)
+
+# Final overview of the cleaned and preprocessed data
+head(combined_data)
+```
+
+## Feature Engineering
+
+```{r feature-engineering}
+## Discretization of variables: Create age groups
+combined_data <- combined_data |>
+  mutate(AgeGroup = case_when(
+    Age %in% c("18-24", "25-34") ~ "Young",
+    Age %in% c("35-44", "45-54") ~ "Middle-aged",
+    Age %in% c("55-64", "65") ~ "Old",
+    TRUE ~ "Other"
+  ))
+
+#Combination of Variables: Create New Features
+combined_data <- combined_data %>%
+  mutate(
+    TotalGiftSpending = Candy + Flowers + Jewelry + GreetingCards + EveningOut + Clothing + GiftCards,
+    Candy_Flowers = Candy * Flowers,
+    Jewelry_Clothing = Jewelry * Clothing
+  )
+
+## Normalization: Scale numeric variables (e.g., Min-Max normalization)
+combined_data <- combined_data |>
+  mutate(across(all_of(numeric_columns), ~ (.-min(.)) / (max(.) - min(.))))
+
+#Encode Categorical Variables
+# Convert categorical variables to factors and then to dummy variables
+combined_data <- combined_data %>%
+  mutate(
+    Gender = factor(Gender),
+    Age = factor(Age)
+  )
+
+# Create dummy variables
+combined_data_dummies <- combined_data %>%
+  select(-all_of(numeric_columns)) %>%
+  mutate(across(where(is.factor), ~ as.numeric(.))) %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  # Replace NA with 0
+
+# Combine Scaled Numeric Features and Dummy Variables
+final_data <- cbind(combined_data %>% select(all_of(numeric_columns)), combined_data_dummies)
+
+```
+
+### Correlation Analysis
+
+```{r}
+#Check for Multicollinearity
+# Select only numeric columns from final_data for correlation analysis
+numeric_final_data <- final_data %>% select(where(is.numeric))
+
+# Calculate the correlation matrix for the numeric features
+cor_matrix <- cor(numeric_final_data, use = "pairwise.complete.obs")  # Handle NA values if present
+
+# Optionally visualize the correlation matrix
+ggcorrplot(cor_matrix, lab = TRUE)
+
+```
+
+# Visualization Tools
+
+```{r visuals}
+# Plot histograms
+for (col in numeric_columns) {
+  p <- ggplot(final_data, aes_string(x = col)) +
+    geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.7) +
+    labs(title = paste("Distribution of", col), x = col, y = "Frequency") +
+    theme_minimal()
+  print(p)  # Print the plot
+}
+
+### 2. Boxplots to Identify Outliers
+# Create boxplots for numeric variables
+for (col in numeric_columns) {
+  p <- ggplot(final_data, aes_string(x = "factor(0)", y = col)) +
+    geom_boxplot(fill = "lightblue") +
+    labs(title = paste("Boxplot of", col), x = "", y = col) +
+    theme_minimal()
+  print(p)  # Print the plot
+}
+
+### 3. Count of Age Groups
+# Bar plot for Age Group distribution
+p_age_group <- ggplot(final_data, aes(x = AgeGroup)) +
+  geom_bar(fill = "coral") +
+  labs(title = "Count of Age Groups", x = "Age Group", y = "Count") +
+  theme_minimal()
+print(p_age_group)
+
+### 4. Gender Distribution
+# Bar plot for Gender distribution
+p_gender <- ggplot(final_data, aes(x = Gender)) +
+  geom_bar(fill = "lightgreen") +
+  labs(title = "Gender Distribution", x = "Gender", y = "Count") +
+  theme_minimal()
+print(p_gender)
+
+### 5. Pairwise Scatter Plots
+# Create a pairs plot for numeric variables
+pairs_plot <- pairs(final_data[numeric_columns], 
+                    main = "Pairwise Scatter Plots",
+                    pch = 19, 
+                    col = rgb(0, 0, 1, alpha = 0.5))
+
+### 6. Correlation Heatmap
+# Calculate the correlation matrix
+cor_matrix <- cor(final_data[numeric_columns], use = "pairwise.complete.obs")
+ggcorrplot(cor_matrix, lab = TRUE, title = "Correlation Heatmap")
+```
+
+## Exploratory Data Analysis Visualizations
+
+```{r EDA}
+
+ggplot(final_data, aes(x = Gender, y = PerPerson)) +
+    geom_boxplot(fill = "pink") +
+    labs(title = "Per Person Spending by Gender", x = "Gender", y = "Spending Per Person")
+
+
+ggplot(final_data, aes(x = PerPerson)) +
+    geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+    labs(title = "Distribution of Spending Amounts", x = "Spending Amount", y = "Frequency")
+
+ggplot(final_data, aes(x = PerPerson)) +
+    geom_density(fill = "red", alpha = 0.5) +
+    labs(title = "Density of Spending Amounts", x = "Spending Amount", y = "Density")
+
+
+ggplot(final_data, aes(x = Year, y = PerPerson)) +
+    geom_line() +
+    labs(title = "Trends in Spending Over Time", x = "Year", y = "Spending Amount")
+
+# Visualize distribution of spending per person
+ggplot(final_data, aes(x = PerPerson)) +
+  geom_histogram(binwidth = 10, fill = "pink", color = "black") +
+  labs(title = "Distribution of Spending per Person",
+       x = "Spending per Person ($)",
+       y = "Frequency") +
+  theme_minimal()
+
+
+# Boxplot of spending per person by gender
+ggplot(final_data, aes(x = Gender, y = PerPerson, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Spending per Person by Gender",
+       x = "Gender",
+       y = "Spending per Person ($)") +
+  theme_minimal()
+
+
+# Bar plot for average spending on gifts by gender
+avg_spending_gender <- final_data %>%
+  group_by(Gender) %>%
+  summarise(across(starts_with("gender_"), mean, na.rm = TRUE), .groups = 'drop')
+
+# Reshape the data for plotting
+avg_spending_gender_long <- avg_spending_gender %>%
+  pivot_longer(cols = -Gender, names_to = "Gift_Type", values_to = "Average_Spending")
+
+# Create the bar plot
+ggplot(avg_spending_gender_long, aes(x = Gift_Type, y = Average_Spending, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Spending on Gifts by Gender",
+       x = "Gift Type",
+       y = "Average Spending ($)") +
+  theme_minimal() +
+  coord_flip()
+
+
+# Bar plot for average spending on gifts by gender
+avg_spending_gender <- final_data %>%
+  group_by(Gender) %>%
+  summarise(across(starts_with("gender_"), mean, na.rm = TRUE))
+
+avg_spending_gender_long <- avg_spending_gender %>%
+  pivot_longer(cols = -Gender, names_to = "Gift_Type", values_to = "Average_Spending")
+
+ggplot(avg_spending_gender_long, aes(x = Gift_Type, y = Average_Spending, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Spending on Gifts by Gender",
+       x = "Gift Type",
+       y = "Average Spending ($)") +
+  theme_minimal() +
+  coord_flip()
+
+# Correlation heatmap for numerical variables
+correlation_matrix <- cor(final_data %>% select(PerPerson, Candy, Flowers, Jewelry, 
+                                           GreetingCards, EveningOut, Clothing, 
+                                           GiftCards, age_SpendingCelebrating, 
+                                           gender_SpendingCelebrating, TotalGiftSpending), use = "complete.obs")
+
+ggcorrplot(correlation_matrix, lab = TRUE, title = "Correlation Heatmap")
+
+# Age group spending analysis
+ggplot(final_data, aes(x = AgeGroup, y = PerPerson, fill = AgeGroup)) +
+  geom_boxplot() +
+  labs(title = "Spending per Person by Age Group",
+       x = "Age Group",
+       y = "Spending per Person ($)") +
+  theme_minimal()
+
+# Visualize spending on specific gifts by age group
+ggplot(final_data) +
+  geom_bar(aes(x = AgeGroup, y = Candy, fill = "Candy"), stat = "identity", position = "dodge") +
+  geom_bar(aes(x = AgeGroup, y = Flowers, fill = "Flowers"), stat = "identity", position = "dodge") +
+  labs(title = "Spending on Gifts by Age Group",
+       x = "Age Group",
+       y = "Spending Amount ($)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Candy" = "red", "Flowers" = "blue")) +
+  theme(legend.title = element_blank())
+
+
+
+# Bar plot for average spending on gifts by gender
+avg_spending_gender <- final_data %>%
+  group_by(Gender) %>%
+  summarise(across(starts_with("gender_"), mean, na.rm = TRUE), .groups = 'drop')
+
+# Reshape the data for plotting
+avg_spending_gender_long <- avg_spending_gender %>%
+  pivot_longer(cols = -Gender, names_to = "Gift_Type", values_to = "Average_Spending")
+
+# Create the bar plot
+ggplot(avg_spending_gender_long, aes(x = Gift_Type, y = Average_Spending, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Spending on Gifts by Gender",
+       x = "Gift Type",
+       y = "Average Spending ($)") +
+  theme_minimal() +
+  coord_flip()
+```
