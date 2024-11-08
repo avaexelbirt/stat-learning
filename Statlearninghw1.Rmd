@@ -2,7 +2,7 @@
 title: "Statlearninghw1"
 author: "Sam Reade"
 date: "2024-11-08"
-output: html_document
+output: html_document 
 ---
 
 ```{r setup, include=FALSE}
@@ -15,16 +15,36 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages("tidytuesdayR")
+install.packages("ggcorrplot")
+library(ggcorrplot)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+Goals: 
+- predict neighborhood / county by price 
+- predict price by square footage 
+- find relationships between year and price 
+- predict # of beds by price or price by number of beds 
+- maybe do something with embeddings for the titles for more info about home - correlate with price
+
+
+```{r}
+Rent_df = tidytuesdayR::tt_load('2022-07-05')
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+Rent = Rent_df$rent
+Permits = Rent_df$sf_permits
+Construction = Rent_df$new_construction
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Data Cleaning: 
+
+```{r}
+
+```
+
