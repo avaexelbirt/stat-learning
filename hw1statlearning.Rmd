@@ -15,6 +15,9 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 ```
+Goals: 
+- 
+
 
 ```{r load-data}
 tuesdata <- tidytuesdayR::tt_load('2024-02-13')
@@ -49,7 +52,7 @@ write.csv(combined_all, "combined_dataset.csv", row.names = FALSE)
 ```
 
 ```{r save-csv}
-write.csv(combined_all, "/Users/avaexelbirt/Downloads/combined_all.csv", row.names = FALSE)
+#write.csv(combined_all, "/Users/avaexelbirt/Downloads/combined_all.csv", row.names = FALSE)
 
 ```
 
@@ -112,6 +115,32 @@ summary(combined_data)
 
 # Final overview of the cleaned and preprocessed data
 head(combined_data)
+```
+```{r}
+# Assuming the data is stored in a data frame 'df'
+# For example:
+# df <- read.csv("your_data.csv")
+
+# Function to generate random data similar to the original data
+generate_random_data <- function(final_data, n = 2500) {
+  full_df <- final_data %>%
+    summarise(across(everything(), ~ sample(.x, n, replace = TRUE)))
+  
+  return(full_df)
+}
+
+# Generating 1000 new rows
+set.seed(123)  # For reproducibility
+new_rows <- generate_random_data(final_data, n = 2500)
+
+# View the first few rows of the new data
+head(new_rows)
+
+# Optionally, you can combine the original data and the new rows:
+FINAL <- rbind(final_data, new_rows)
+
+# View the combined data
+head(FINAL)
 ```
 
 ## Feature Engineering
