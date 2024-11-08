@@ -345,3 +345,47 @@ ggplot(avg_spending_gender_long, aes(x = Gift_Type, y = Average_Spending, fill =
   theme_minimal() +
   coord_flip()
 ```
+
+# Principal Component Analysis
+
+```{r PCA}
+# Remove constant (zero variance) columns
+numeric_final_data <- numeric_final_data %>%
+  select(where(~ var(.) > 0))
+
+pca <- prcomp(numeric_final_data, center = TRUE, scale. = TRUE)
+
+summary(pca)
+screeplot(pca, main = "Screeplot", col = "blue", type = "barplot", pch = 19)
+
+# Nicer scree plot with factoextra
+library(factoextra)
+fviz_screeplot(pca, addlabels = TRUE)
+plot(pca, type = "l")
+biplot(pca)
+fviz_pca_var(pca, col.var = "contrib")
+fviz_pca_biplot(pca, repel = TRUE)
+
+
+# First component interpretation
+barplot(pca$rotation[,1], las=2, col="darkblue")
+# Repeat for the second component
+barplot(pca$rotation[,2], las=2, col="darkblue")
+
+
+# Contribution of variables to PC1
+fviz_contrib(pca, choice = "var", axes = 1)
+# Contribution of variables to PC2
+fviz_contrib(pca, choice = "var", axes = 2)
+
+# Top 10 observations for PC1
+rownames(numeric_final_data)[order(pca$x[,1])[1:10]]
+# Bottom 5 observations for PC1
+rownames(numeric_final_data)[order(pca$x[,1])[(length(numeric_final_data)-5):length(numeric_final_data)]]
+
+# Scatter plot of the first two PC scores
+data.frame(z1 = -pca$x[,1], z2 = pca$x[,2]) %>%
+  ggplot(aes(z1, z2)) + geom_point() +
+  labs(title = "PCA Scores", x = "PC1", y = "PC2") + theme_bw()
+
+```
