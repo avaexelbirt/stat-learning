@@ -42,9 +42,130 @@ Permits = Rent_df$sf_permits
 Construction = Rent_df$new_construction
 ```
 
-# Data Cleaning: 
+# Data Preprocessing: 
 
 ```{r}
+head(Rent)
+dim(Rent)
+```
+# Data Cleanup: 
+```{r}
+# Check number of Duplicate Rows: 
+num_duplicates = sum(duplicated(Rent))
+print(num_duplicates)
+```
 
+# Checking unique values of categorical features:
+
+# Year values:
+```{r}
+ unique_year = unique(Rent$year)
+print(unique_year)
+
+years_count = table(Rent$year)
+print(years_count)
+```
+# Neighborhood values: 
+```{r}
+unique_nhood = unique(Rent$nhood)
+print(unique_nhood)
+
+nhood_count = table(Rent$nhood)
+print(nhood_count)
+```
+# City values: 
+```{r}
+unique_city = unique(Rent$city)
+print(unique_city)
+
+city_count = table(Rent$city)
+print(city_count)
+```
+# County values: 
+```{r}
+unique_county = unique(Rent$county)
+print(unique_county)
+
+county_count = table(Rent$county)
+print(county_count)
+```
+# Removing unnecessary columns: 
+```{r}
+Rent = Rent %>% select(-room_in_apt, -lat, -lon, -address, -descr, -details)
+head(Rent)
+```
+
+# Checking count of rows with at least 1 NA value: 
+```{r}
+count_na_rows = sum(apply(Rent, 1, function(x) any(is.na(x))))
+print(count_na_rows)
+```
+
+# Checking count of NA value in each column: 
+```{r}
+na_count_year = sum(is.na(Rent$year))
+print(paste("NA year:", na_count_year))
+
+na_count_nhood = sum(is.na(Rent$nhood))
+print(paste("NA count nhood:", na_count_nhood))
+
+na_count_city = sum(is.na(Rent$city))
+print(paste("NA count city:", na_count_city))
+
+na_count_county = sum(is.na(Rent$county))
+print(paste("NA count county:", na_count_county))
+
+na_count_price = sum(is.na(Rent$price))
+print(paste("NA count price:", na_count_price))
+
+na_count_beds = sum(is.na(Rent$beds))
+print(paste("NA count beds:", na_count_beds))
+
+na_count_baths = sum(is.na(Rent$baths))
+print(paste("NA count baths:", na_count_baths))
+
+na_count_sqft = sum(is.na(Rent$sqft))
+print(paste("NA count sqft:", na_count_sqft))
+
+na_count_title = sum(is.na(Rent$title))
+print(paste("NA count title:", na_count_title))
+
+```
+# Removing rows with NAs for title, county, beds 
+```{r}
+Rent_cleaned <- Rent %>%
+  filter(!is.na(title), !is.na(county), !is.na(beds))
+
+Rent_cleaned
+```
+# Checking for comoplete rows (no NAs):
+```{r}
+complete_rows = sum(complete.cases(Rent))
+
+print(complete_rows)
+```
+
+# Making complete data frame (no NAs): 
+```{r}
+complete_Rent = Rent[complete.cases(Rent), ]
+complete_Rent
+```
+
+# Creating data frame for baths (with id, date, year, nhood, city, county, price, title)
+```{r}
+Rent_cleaned_baths <- Rent_cleaned %>%
+  filter(!is.na(baths)) %>%
+  select(post_id, date, year, nhood, city, county, beds, price, title)  
+
+Rent_cleaned_baths
+```
+
+# Creating data frame for sqrt (with id, date, year, nhood, city, county, price, title)
+```{r}
+Rent_cleaned_sqft <- Rent_cleaned %>%
+  filter(!is.na(sqft)) %>%
+  select(post_id, date, year, nhood, city, county, beds, price, title)  
+
+Rent_cleaned_sqft
 ```
 
