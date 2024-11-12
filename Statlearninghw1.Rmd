@@ -426,6 +426,8 @@ Market Segmentation by Location: Cluster based on city, county, or nhood
 combined with property attributes like price and sqft to find
 location-based patterns - complete_rent
 
+K-Means Clustering:
+
 ```{r}
 
 # Step 1: Standardize the data (important for clustering algorithms)
@@ -448,5 +450,37 @@ Rent_factor_data %>%
   geom_point() +
   theme_minimal() +
   labs(title = "K-means Clustering (Price vs. Sqft)", color = "Cluster")
+
+```
+
+Hierarchical Clustering:
+
+```{r}
+# Step 1: Data Preparation (already done in previous steps)
+
+# Step 2: Standardize the data
+Rent_factor_data_scaled <- scale(Rent_factor_data)
+
+# Step 3: Compute the distance matrix
+distance_matrix <- dist(Rent_factor_data_scaled)
+
+# Step 4: Perform hierarchical clustering
+hclust_result <- hclust(distance_matrix, method = "ward.D2")  # "ward.D2" is often a good method
+
+# Step 5: Plot the dendrogram
+plot(hclust_result, main = "Hierarchical Clustering Dendrogram", xlab = "", ylab = "Height")
+
+# Step 6: Cut the tree to get clusters (e.g., 3 clusters)
+hclust_clusters <- cutree(hclust_result, k = 3)
+
+# Step 7: Add cluster assignments to the data
+Rent_factor_data$cluster <- hclust_clusters
+
+# Step 8: Visualize the clusters (optional, if you have only 2 or 3 dimensions)
+Rent_factor_data %>%
+  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Hierarchical Clustering (Price vs. Sqft)", color = "Cluster")
 
 ```
