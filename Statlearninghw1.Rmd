@@ -240,6 +240,35 @@ bath_outliers = detective(Rent_cleaned_baths$baths)
 num_outliers_bath = sum(bath_outliers)
 print(paste("Bath outlier count:", num_outliers_bath))
 ```
+# Visualizing outliers: 
+```{r}
+boxplot(Rent_price$price, 
+        main = "Box Plot of Rent Prices", 
+        ylab = "Price", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_cleaned_baths$baths, 
+        main = "Box Plot of baths", 
+        ylab = "baths", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_cleaned_sqft$sqft, 
+        main = "Box Plot of sqft", 
+        ylab = "sqft", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_price$beds, 
+        main = "Box Plot of beds", 
+        ylab = "beds", 
+        col = "lightblue",
+        outline = TRUE)  
+
+
+```
+
 
 # Correlation Analysis:
 
@@ -484,3 +513,70 @@ Rent_factor_data %>%
   labs(title = "Hierarchical Clustering (Price vs. Sqft)", color = "Cluster")
 
 ```
+# K-means Clustering (trying to find meaningful clusters)
+- high rent areas (cities)
+```{r}
+library(cluster)
+
+Rent_price <- Rent_price %>%
+  mutate(city = as.numeric(as.factor(city)))  
+
+
+data_scaled <- Rent_price %>%
+  mutate(price = scale(price)) %>%
+  select(price, city)  
+
+
+set.seed(123)
+k <- 8 
+
+kmeans_result <- kmeans(data_scaled, centers = k)
+
+
+Rent_price$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(Rent_price, aes(x = city, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and City",
+       x = "City",
+       y = "Price") +
+  theme_minimal()
+
+# clustered by scaled price and encoded cities
+```
+# Clustering sqft by price: 
+```{r}
+set.seed(123)  
+k = 10  
+
+kmeans_result = kmeans(complete_Rent[, c("price", "sqft")], centers = k)
+
+complete_Rent$cluster = as.factor(kmeans_result$cluster)
+
+ggplot(complete_Rent, aes(x = sqft, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and Square Feet",
+       x = "Square Feet",
+       y = "Price") +
+  theme_minimal()
+
+
+```
+# Clustering Price by sqft: 
+```{r}
+set.seed(123)  
+k = 10  
+
+kmeans_result = kmeans(complete_Rent[, c("price", "sqft")], centers = k)
+
+complete_Rent$cluster = as.factor(kmeans_result$cluster)
+
+ggplot(complete_Rent, aes(x = price, y = sqft, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and Square Feet",
+       x = "Square Feet",
+       y = "Price") +
+  theme_minimal()
+```
+
