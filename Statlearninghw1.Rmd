@@ -3,30 +3,34 @@ title: "Statlearninghw1"
 author: "Sam Reade"
 date: "2024-11-08"
 output: html_document 
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Statistical Learning Homework 1: 
+# Statistical Learning Homework 1:
 
 ```{r}
 knitr::opts_chunk$set(echo = TRUE)
 install.packages("tidytuesdayR")
 install.packages("ggcorrplot")
+install.packages("psych")
+library(psych)
 library(ggcorrplot)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 ```
-Goals: 
-- predict neighborhood / county by price 
-- predict price by square footage 
-- find relationships between year and price 
-- predict # of beds by price or price by number of beds 
-- maybe do something with embeddings for the titles for more info about home - correlate with price
 
+Goals: - predict neighborhood / county by price - predict price by
+square footage - find relationships between year and price - predict \#
+of beds by price or price by number of beds - maybe do something with
+embeddings for the titles for more info about home - correlate with
+price
 
 ```{r}
 Rent_df = tidytuesdayR::tt_load('2022-07-05')
@@ -38,13 +42,15 @@ Permits = Rent_df$sf_permits
 Construction = Rent_df$new_construction
 ```
 
-# Data Preprocessing: 
+# Data Preprocessing:
 
 ```{r}
 head(Rent)
 dim(Rent)
 ```
-# Data Cleanup: 
+
+# Data Cleanup:
+
 ```{r}
 # Check number of Duplicate Rows: 
 num_duplicates = sum(duplicated(Rent))
@@ -54,6 +60,7 @@ print(num_duplicates)
 # Checking unique values of categorical features:
 
 # Year values:
+
 ```{r}
 unique_year = unique(as.factor(Rent$year))
 print(unique_year)
@@ -61,7 +68,9 @@ print(unique_year)
 years_count = table(Rent$year)
 print(years_count)
 ```
-# Neighborhood values: 
+
+# Neighborhood values:
+
 ```{r}
 unique_nhood = unique(as.factor(Rent$nhood))
 print(unique_nhood)
@@ -71,7 +80,9 @@ print(nhood_count)
 
 # 167 nhoods
 ```
-# City values: 
+
+# City values:
+
 ```{r}
 unique_city = unique(as.factor(Rent$city))
 print(unique_city)
@@ -81,7 +92,9 @@ print(city_count)
 
 # 104 cities
 ```
-# County values: 
+
+# County values:
+
 ```{r}
 unique_county = unique(as.factor(Rent$county))
 print(unique_county)
@@ -91,19 +104,23 @@ print(county_count)
 
 # 10 counties
 ```
-# Removing unnecessary columns: 
+
+# Removing unnecessary columns:
+
 ```{r}
 Rent = Rent %>% select(-room_in_apt, -lat, -lon, -address, -descr, -details)
 head(Rent)
 ```
 
-# Checking count of rows with at least 1 NA value: 
+# Checking count of rows with at least 1 NA value:
+
 ```{r}
 count_na_rows = sum(apply(Rent, 1, function(x) any(is.na(x))))
 print(count_na_rows)
 ```
 
-# Checking count of NA value in each column: 
+# Checking count of NA value in each column:
+
 ```{r}
 na_count_year = sum(is.na(Rent$year))
 print(paste("NA count year:", na_count_year))
@@ -134,28 +151,34 @@ print(paste("NA count title:", na_count_title))
 
 ```
 
-# Removing rows with NAs for title, county, beds 
+# Removing rows with NAs for title, county, beds
+
 ```{r}
 Rent_cleaned <- Rent %>%
   filter(!is.na(title), !is.na(county), !is.na(beds))
 
 Rent_cleaned
 ```
+
 # Checking for comoplete rows (no NAs):
+
 ```{r}
 complete_rows = sum(complete.cases(Rent))
 
 print(complete_rows)
 ```
 
-# Making complete data frame (no NAs): 
+# Making complete data frame (no NAs):
+
 ```{r}
 complete_Rent = Rent[complete.cases(Rent), ]
 complete_Rent
 ```
 
 # Creating data frame for baths (with id, date, year, nhood, city, county, price, title)
-# No NAs 
+
+# No NAs
+
 ```{r}
 Rent_cleaned_baths <- Rent_cleaned %>%
   filter(!is.na(baths)) %>%
@@ -165,7 +188,9 @@ Rent_cleaned_baths
 ```
 
 # Creating data frame for sqrt (with id, date, year, nhood, city, county, price, title)
+
 # No NAs
+
 ```{r}
 Rent_cleaned_sqft <- Rent_cleaned %>%
   filter(!is.na(sqft)) %>%
@@ -173,13 +198,16 @@ Rent_cleaned_sqft <- Rent_cleaned %>%
 
 Rent_cleaned_sqft
 ```
+
 # Complete data without features with many NAs: (no bath / sqft)
+
 ```{r}
 Rent_price = Rent_cleaned %>% select(-baths, -sqft)
 Rent_price
 ```
 
-# Checking for Outliers: 
+# Checking for Outliers:
+
 ```{r}
 
 detective = function(column) {
@@ -213,8 +241,8 @@ num_outliers_bath = sum(bath_outliers)
 print(paste("Bath outlier count:", num_outliers_bath))
 ```
 
+# Correlation Analysis:
 
-# Correlation Analysis: 
 ```{r}
 numeric_complete_rent <- complete_Rent %>% select(where(is.numeric))
 
@@ -223,7 +251,8 @@ cor_matrix = cor(numeric_complete_rent, use = "pairwise.complete.obs")
 ggcorrplot(cor_matrix, lab = TRUE)
 ```
 
-# Histogram of Price: 
+# Histogram of Price:
+
 ```{r}
 ggplot(Rent_price, aes(x = price)) +
   geom_histogram(binwidth = 250, color = "black", fill = "skyblue") +
@@ -232,7 +261,8 @@ ggplot(Rent_price, aes(x = price)) +
   coord_cartesian(xlim = c(0, 20000))
 ```
 
-# Histogram of sqft: 
+# Histogram of sqft:
+
 ```{r}
 ggplot(Rent_cleaned_sqft, aes(x = sqft)) +
   geom_histogram(binwidth = 100, color = "black", fill = "skyblue") +
@@ -241,21 +271,26 @@ ggplot(Rent_cleaned_sqft, aes(x = sqft)) +
   coord_cartesian(xlim = c(0, 10000))
 ```
 
-# Bar Plot of beds: 
+# Bar Plot of beds:
+
 ```{r}
 ggplot(Rent_price, aes(x = beds)) +
   geom_bar(color = "black", fill = "skyblue") +
   labs(title = "Bar Plot of beds", x = "Number of beds", y = "Count") +
   theme_minimal()
 ```
-# Bar Plot of baths: 
+
+# Bar Plot of baths:
+
 ```{r}
 ggplot(Rent_cleaned_baths, aes(x = baths)) +
   geom_bar(color = "black", fill = "skyblue") +
   labs(title = "Bar Plot of baths", x = "Number of baths", y = "Count") +
   theme_minimal()
 ```
-# Bar Plot for year: 
+
+# Bar Plot for year:
+
 ```{r}
 ggplot(Rent_price, aes(x = factor(year))) +  
   geom_bar(color = "black", fill = "skyblue") +  
@@ -263,47 +298,9 @@ ggplot(Rent_price, aes(x = factor(year))) +
   theme_minimal()
 ```
 
+-   For nhood beware has some countys in it...
 
-- For nhood beware has some countys in it... 
-
-# Data sets to use: 
-
-For predict neighborhood / county / city by price:  
-Rent_price (190,618 x 8) --> id, date, year, nhood, city, county, price, title 
-
-For predicting price by square footage: 
-Rent_cleaned_sqft (61,056 x 9) --> id, date, year, nhood, city, county, sqft, price, title
-
-For finding relationships between year and price: 
-Rent_price (190,618 x 8) --> id, date, year, nhood, city, county, price, title 
-
-For predicting # of beds by price: 
-Rent_price (190,618 x 8) --> id, date, year, nhood, city, county, price, title
-
-# CLUSTERING
-Property Segmentation: 
-Cluster sqft, price, beds, and baths to group similar types of properties --> clusters might represent luxury homes, small apartments, or family homes  
-- complete_Rent
-
-Market Segmentation by Location: 
-Cluster based on city, county, or nhood combined with property attributes like price and sqft to find location-based patterns 
-- complete_rent
-
-# PCA ANALYSIS:
-Engineer new features: 
-- price_per_sqft = price / sqft --> "Rent_cleaned_sqft"
-- price_per_bed = price / bed --> "Rent_price" 
-- price_per_bathroom = price / bath --> "Rent_cleaned_baths"
-
-7 features to work with 
-
-DF: Rent_for_PCA
-
-# Factor Analysis: 
-.... 
-
-
-# Feature Engineering: 
+# Feature Engineering:
 
 ```{r}
 Rent_for_PCA = complete_Rent
@@ -321,7 +318,8 @@ Rent_for_PCA = Rent_for_PCA %>% select(-title)
 Rent_for_PCA
 ```
 
-# Correlation Analysis with more features: 
+# Correlation Analysis with more features:
+
 ```{r}
 numeric_complete_rent2 <- Rent_for_PCA %>% select(where(is.numeric))
 
@@ -330,3 +328,125 @@ cor_matrix2 = cor(numeric_complete_rent2, use = "pairwise.complete.obs")
 ggcorrplot(cor_matrix2, lab = TRUE)
 ```
 
+# Data sets to use:
+
+For predict neighborhood / county / city by price:\
+Rent_price (190,618 x 8) --\> id, date, year, nhood, city, county,
+price, title
+
+For predicting price by square footage: Rent_cleaned_sqft (61,056 x 9)
+--\> id, date, year, nhood, city, county, sqft, price, title
+
+For finding relationships between year and price: Rent_price (190,618 x
+8) --\> id, date, year, nhood, city, county, price, title
+
+For predicting \# of beds by price: Rent_price (190,618 x 8) --\> id,
+date, year, nhood, city, county, price, title
+
+```{r}
+# Step 1: Select numeric columns for factor analysis
+Rent_factor_data <- Rent_for_PCA %>%
+  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
+
+# Step 2: Clean the data by handling NA and infinite values
+# Replace NA values with the column mean, and handle Inf values
+Rent_factor_data <- Rent_factor_data %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+  mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
+  drop_na()
+```
+
+# PCA ANALYSIS:
+
+Engineer new features: - price_per_sqft = price / sqft --\>
+"Rent_cleaned_sqft" - price_per_bed = price / bed --\> "Rent_price" -
+price_per_bathroom = price / bath --\> "Rent_cleaned_baths"
+
+7 features to work with
+
+DF: Rent_for_PCA
+
+```{r PCA}
+# Step 2: Standardize the data
+Rent_factor_data_scaled <- scale(Rent_factor_data)
+
+# Step 3: Perform PCA
+pca_result <- prcomp(Rent_factor_data_scaled, center = TRUE, scale. = TRUE)
+
+# Step 4: View the summary of PCA results
+summary(pca_result)
+
+# Step 5: View the PCA loadings (the relationship between original variables and principal components)
+print(pca_result$rotation)
+
+# Step 6: View the proportion of variance explained by each principal component
+proportion_variance <- summary(pca_result)$importance[2, ]
+print(proportion_variance)
+
+
+# Create a dataframe with PCA results
+pca_data <- data.frame(pca_result$x)  # Scores of the principal components
+
+# Plot the first two principal components
+ggplot(pca_data, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = Rent_factor_data$cluster)) +  # Use cluster for coloring (if clustering done)
+  theme_minimal() +
+  labs(title = "PCA: First vs. Second Principal Component", x = "Principal Component 1", y = "Principal Component 2")
+
+```
+
+# Factor Analysis:
+
+Select relevant columns for factor analysis, only numeric ones:
+`price_per_sqft`, `price_per_bed`, and `price_per_bath`, `price`,
+`sqft`, `beds`, and `bath.` We will use the Rent_for_PCA dataframe.
+
+```{r}
+# Step 3: Run a Scree Plot to determine the number of factors
+fa.parallel(Rent_factor_data, fa = "fa")
+
+# Step 4: Perform factor analysis with the selected number of factors (assuming 3 factors)
+factor_analysis <- fa(Rent_factor_data, nfactors = 3, rotate = "varimax")
+
+# Step 5: View the factor loadings to interpret results
+print(factor_analysis)
+
+```
+
+....
+
+# CLUSTERING
+
+Property Segmentation: Cluster sqft, price, beds, and baths to group
+similar types of properties --\> clusters might represent luxury homes,
+small apartments, or family homes\
+- complete_Rent
+
+Market Segmentation by Location: Cluster based on city, county, or nhood
+combined with property attributes like price and sqft to find
+location-based patterns - complete_rent
+
+```{r}
+
+# Step 1: Standardize the data (important for clustering algorithms)
+Rent_factor_data_scaled <- scale(Rent_factor_data)
+
+# Step 2: Perform K-means Clustering
+set.seed(123)  # For reproducibility
+kmeans_result <- kmeans(Rent_factor_data_scaled, centers = 3, nstart = 25)  # Assume 3 clusters
+
+# Step 3: View clustering results
+print(kmeans_result)  # Output of the K-means clustering
+
+# Step 4: Add cluster assignment to the data
+Rent_factor_data$cluster <- kmeans_result$cluster
+
+# Step 5: Visualize the clusters (optional, if you have only 2 or 3 dimensions)
+library(ggplot2)
+Rent_factor_data %>%
+  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering (Price vs. Sqft)", color = "Cluster")
+
+```
