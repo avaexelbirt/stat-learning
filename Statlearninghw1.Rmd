@@ -19,6 +19,8 @@ knitr::opts_chunk$set(echo = TRUE)
 install.packages("tidytuesdayR")
 install.packages("ggcorrplot")
 install.packages("psych")
+install.packages("factoextra")
+library(factoextra)
 library(psych)
 library(ggcorrplot)
 library(dplyr)
@@ -326,7 +328,7 @@ Rent_num
 
 ```{r}
 ggplot(Rent_num, aes(x = price_per_sqft)) +
-  geom_histogram(binwidth = 5, color = "black", fill = "lightgreen") +
+  geom_histogram(binwidth = 1, color = "black", fill = "lightgreen") +
   labs(title = "Histogram of Price per Sqft", x = "Price per Sqft", y = "Count") +
   theme_minimal()
 
@@ -417,7 +419,7 @@ date, year, nhood, city, county, price, title***
 
 ```{r}
 Rent_analysis <- Rent_num |>
-  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
+  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath, year, date)
 
 # Step 2: Clean the data by handling NA and infinite values
 # Replace NA values with the column mean, and handle Inf values
@@ -478,9 +480,14 @@ print(proportion_variance)
 ```
 
 ## Visualize the first two PCs. 
+```{r}
+Rent_PCA_df = data.frame(PC1 = pca_result$x[, 1], PC2 = pca_result$x[, 2])
+Rent_PCA_df
+```
+
 
 ```{r}
-ggplot(pca_data, aes(x = PC1, y = PC2)) +
+ggplot(Rent_PCA_df, aes(x = PC1, y = PC2)) +
   geom_point(color = "blue", alpha = 0.6) +  
   theme_minimal() +
   labs(title = "PCA: First vs. Second Principal Component", 
@@ -520,6 +527,7 @@ fviz_contrib(pca_result, choice = "var", axes = 2, title = "Contribution of Vari
 
 ```{r}
 fviz_pca_biplot(pca_result, repel = TRUE, title = "PCA Biplot")
+                
 ```
 
 ## Create dataframe with results
@@ -602,15 +610,21 @@ SS_loadings
 ## Visualize Factor Scores
 
 ```{r}
-factor_scores <- data.frame(date = Rent_analysis$date, factor_analysis$scores)
+factor_analysis_df = as.data.frame(factor_analysis$scores)
+factor_analysis_df
+```
+
+
+```{r}
+factor_scores <- data.frame(date = Rent_analysis$date, factor_analysis_df)
 library(ggplot2)
 factor_scores %>%
   gather("factor", "score", -date) %>%
   ggplot(aes(x = date, y = score)) + 
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   facet_wrap(~ factor, ncol = 1) +
   theme_bw() +
-  labs(title = "Factor Scores Over Time", x = "", y = "Score")
+  labs(title = "Factor Scores Over Time (2000-2018)", x = "", y = "Score")
 ```
 
 ## Oblimin Rotation for Correlated Factors
@@ -619,6 +633,8 @@ factor_scores %>%
 factor_analysis_oblimin <- fa(Rent_analysis, nfactors = 3, rotate = "oblimin")
 print(factor_analysis_oblimin$loadings)
 
+
+# Not sure what the issue is with this but need to be mindful it says they are probably incorrect
 ```
 
 ....
@@ -765,6 +781,86 @@ ggplot(complete_Rent, aes(x = price, y = sqft, color = cluster)) +
        y = "Price") +
   theme_minimal()
 ```
+# Average Price per neighborhood: 
+```{r}
+avg_price_per_nhood = Rent_cleaned %>%
+  group_by(nhood) %>%               
+  summarise(average_price = mean(price, na.rm = TRUE))  
+
+avg_price_per_nhood
+
+```
+# Average square feet per neighborhood: 
+```{r}
+avg_sqft_per_nhood = Rent_cleaned %>%
+  group_by(nhood) %>%               
+  summarise(average_sqft = mean(sqft, na.rm = TRUE))  
+
+avg_sqft_per_nhood 
+```
+# Elbow Method to determine ideal k for price:
+```{r}
+
+avg_scaled_data_price = scale(avg_price_per_nhood$average_price)
+
+
+wss <- sapply(1:10, function(k) {
+  kmeans(avg_scaled_data_price, centers = k, nstart = 25)$tot.withinss 
+})
+
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE, 
+     xlab = "Number of Clusters (k)", ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method for Optimal Number of Clusters (price)")
+
+```
+# Elbow Method to determine ideal k for square feet:
+```{r}
+avg_scaled_data_sqft = scale(avg_sqft_per_nhood$average_sqft)
+
+
+wss <- sapply(1:10, function(k) {
+  kmeans(avg_scaled_data_sqft, centers = k, nstart = 25)$tot.withinss 
+})
+
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE, 
+     xlab = "Number of Clusters (k)", ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method for Optimal Number of Clusters (sqft)")
+```
+# Neighborhoods clustered by average price: 
+```{r}
+
+set.seed(123)
+
+kmeans_result = kmeans(avg_scaled_data_price, centers = 8)
+
+avg_price_per_nhood$cluster = kmeans_result$cluster
+
+print(avg_price_per_nhood)
+
+library(ggplot2)
+ggplot(avg_price_per_nhood, aes(x = nhood, y = average_price, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering of neighborhoods Based on Average Price", x = "City", y = "Average Price", color = "Cluster")
+
+```
+# Neighborhoods clustered by average square feet: 
+```{r}
+set.seed(123)
+
+kmeans_result = kmeans(avg_scaled_data_sqft, centers = 8)
+
+avg_sqft_per_nhood$cluster = kmeans_result$cluster
+
+print(avg_price_per_nhood)
+
+library(ggplot2)
+ggplot(avg_sqft_per_nhood, aes(x = nhood, y = average_sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering of neighborhoods Based on Average sqft", x = "City", y = "Average sqft", color = "Cluster")
+```
+
 
 # Citations
 
