@@ -1,6 +1,6 @@
 ---
 title: "Statlearninghw1"
-author: "Sam Reade"
+author: "Sam Reade, Ava Exelbirt"
 date: "2024-11-08"
 output: html_document 
 editor_options: 
@@ -151,59 +151,21 @@ print(paste("NA count title:", na_count_title))
 
 ```
 
-# Removing rows with NAs for title, county, beds
+# Removing rows with NAs for title, county, beds, baths, and sqft
 
 ```{r}
 Rent_cleaned <- Rent %>%
-  filter(!is.na(title), !is.na(county), !is.na(beds))
+  filter(!is.na(title), !is.na(county), !is.na(beds), !is.na(baths), !is.na(sqft))
 
 Rent_cleaned
 ```
 
-# Checking for comoplete rows (no NAs):
+# Checking for complete rows (no NAs):
 
 ```{r}
 complete_rows = sum(complete.cases(Rent))
 
 print(complete_rows)
-```
-
-# Making complete data frame (no NAs):
-
-```{r}
-complete_Rent = Rent[complete.cases(Rent), ]
-complete_Rent
-```
-
-# Creating data frame for baths (with id, date, year, nhood, city, county, price, title)
-
-# No NAs
-
-```{r}
-Rent_cleaned_baths <- Rent_cleaned %>%
-  filter(!is.na(baths)) %>%
-  select(post_id, date, year, nhood, city, county, beds, price, baths, title)  
-
-Rent_cleaned_baths
-```
-
-# Creating data frame for sqrt (with id, date, year, nhood, city, county, price, title)
-
-# No NAs
-
-```{r}
-Rent_cleaned_sqft <- Rent_cleaned %>%
-  filter(!is.na(sqft)) %>%
-  select(post_id, date, year, nhood, city, county, beds, sqft, price, title)  
-
-Rent_cleaned_sqft
-```
-
-# Complete data without features with many NAs: (no bath / sqft)
-
-```{r}
-Rent_price = Rent_cleaned %>% select(-baths, -sqft)
-Rent_price
 ```
 
 # Checking for Outliers:
@@ -224,43 +186,45 @@ detective = function(column) {
   return(outliers)
 }
 
-price_outliers = detective(Rent_price$price)
+price_outliers = detective(Rent_cleaned$price)
 num_outliers_price = sum(price_outliers)
 print(paste("Price outlier count:", num_outliers_price))
 
-bed_outliers = detective(Rent_price$beds)
+bed_outliers = detective(Rent_cleaned$beds)
 num_outliers_bed = sum(bed_outliers)
 print(paste("Bed outlier count:", num_outliers_bed))
 
-sqft_outliers = detective(Rent_cleaned_sqft$sqft)
+sqft_outliers = detective(Rent_cleaned$sqft)
 num_outliers_sqft = sum(sqft_outliers)
 print(paste("sqft outlier count:", num_outliers_sqft))
 
-bath_outliers = detective(Rent_cleaned_baths$baths)
+bath_outliers = detective(Rent_cleaned$baths)
 num_outliers_bath = sum(bath_outliers)
 print(paste("Bath outlier count:", num_outliers_bath))
 ```
-# Visualizing outliers: 
+
+# Visualizing outliers:
+
 ```{r}
-boxplot(Rent_price$price, 
+boxplot(Rent_cleaned$price, 
         main = "Box Plot of Rent Prices", 
         ylab = "Price", 
         col = "lightblue",
         outline = TRUE)  
 
-boxplot(Rent_cleaned_baths$baths, 
+boxplot(Rent_cleaned$baths, 
         main = "Box Plot of baths", 
         ylab = "baths", 
         col = "lightblue",
         outline = TRUE)  
 
-boxplot(Rent_cleaned_sqft$sqft, 
+boxplot(Rent_cleaned$sqft, 
         main = "Box Plot of sqft", 
         ylab = "sqft", 
         col = "lightblue",
         outline = TRUE)  
 
-boxplot(Rent_price$beds, 
+boxplot(Rent_cleaned$beds, 
         main = "Box Plot of beds", 
         ylab = "beds", 
         col = "lightblue",
@@ -269,11 +233,22 @@ boxplot(Rent_price$beds,
 
 ```
 
+# Remove Outliers:
+
+```{r}
+Rent_cleaned <- Rent_cleaned %>%
+  filter(
+    !detective(price),
+    !detective(beds),
+    !detective(baths),
+    !detective(sqft)
+  )
+```
 
 # Correlation Analysis:
 
 ```{r}
-numeric_complete_rent <- complete_Rent %>% select(where(is.numeric))
+numeric_complete_rent <- Rent_cleaned %>% select(where(is.numeric))
 
 cor_matrix = cor(numeric_complete_rent, use = "pairwise.complete.obs")
 
@@ -283,7 +258,7 @@ ggcorrplot(cor_matrix, lab = TRUE)
 # Histogram of Price:
 
 ```{r}
-ggplot(Rent_price, aes(x = price)) +
+ggplot(Rent_cleaned, aes(x = price)) +
   geom_histogram(binwidth = 250, color = "black", fill = "skyblue") +
   labs(title = "Histogram of Price", x = "Price", y = "Count") +
   theme_minimal() +
@@ -293,7 +268,7 @@ ggplot(Rent_price, aes(x = price)) +
 # Histogram of sqft:
 
 ```{r}
-ggplot(Rent_cleaned_sqft, aes(x = sqft)) +
+ggplot(Rent_cleaned, aes(x = sqft)) +
   geom_histogram(binwidth = 100, color = "black", fill = "skyblue") +
   labs(title = "Histogram of Price", x = "sqft", y = "Count") +
   theme_minimal() + 
@@ -303,7 +278,7 @@ ggplot(Rent_cleaned_sqft, aes(x = sqft)) +
 # Bar Plot of beds:
 
 ```{r}
-ggplot(Rent_price, aes(x = beds)) +
+ggplot(Rent_cleaned, aes(x = beds)) +
   geom_bar(color = "black", fill = "skyblue") +
   labs(title = "Bar Plot of beds", x = "Number of beds", y = "Count") +
   theme_minimal()
@@ -312,7 +287,7 @@ ggplot(Rent_price, aes(x = beds)) +
 # Bar Plot of baths:
 
 ```{r}
-ggplot(Rent_cleaned_baths, aes(x = baths)) +
+ggplot(Rent_cleaned, aes(x = baths)) +
   geom_bar(color = "black", fill = "skyblue") +
   labs(title = "Bar Plot of baths", x = "Number of baths", y = "Count") +
   theme_minimal()
@@ -321,7 +296,7 @@ ggplot(Rent_cleaned_baths, aes(x = baths)) +
 # Bar Plot for year:
 
 ```{r}
-ggplot(Rent_price, aes(x = factor(year))) +  
+ggplot(Rent_cleaned, aes(x = factor(year))) +  
   geom_bar(color = "black", fill = "skyblue") +  
   labs(title = "Bar Plot of Year", x = "Year", y = "Count") +  
   theme_minimal()
@@ -332,27 +307,95 @@ ggplot(Rent_price, aes(x = factor(year))) +
 # Feature Engineering:
 
 ```{r}
-Rent_for_PCA = complete_Rent
+Rent_num = Rent_cleaned
 
-price_per_sqft = complete_Rent$price / complete_Rent$sqft 
-price_per_bed = complete_Rent$price / complete_Rent$beds
-price_per_bath = complete_Rent$price / complete_Rent$baths
+price_per_sqft = Rent_cleaned$price / Rent_cleaned$sqft 
+price_per_bed = Rent_cleaned$price / Rent_cleaned$beds
+price_per_bath = Rent_cleaned$price / Rent_cleaned$baths
 
-Rent_for_PCA$price_per_sqft = price_per_sqft
-Rent_for_PCA$price_per_bed = price_per_bed
-Rent_for_PCA$price_per_bath = price_per_bath
+Rent_num$price_per_sqft = price_per_sqft
+Rent_num$price_per_bed = price_per_bed
+Rent_num$price_per_bath = price_per_bath
 
-Rent_for_PCA = Rent_for_PCA %>% select(-title)
+Rent_num = Rent_num %>% select(-title)
 
-Rent_for_PCA
+Rent_num
 ```
 
-# Correlation Analysis with more features:
+# Visualizations of the New Features
 
 ```{r}
-numeric_complete_rent2 <- Rent_for_PCA %>% select(where(is.numeric))
+ggplot(Rent_num, aes(x = price_per_sqft)) +
+  geom_histogram(binwidth = 5, color = "black", fill = "lightgreen") +
+  labs(title = "Histogram of Price per Sqft", x = "Price per Sqft", y = "Count") +
+  theme_minimal()
 
-cor_matrix2 = cor(numeric_complete_rent2, use = "pairwise.complete.obs")
+ggplot(Rent_num, aes(x = price_per_bed)) +
+  geom_histogram(binwidth = 100, color = "black", fill = "lightcoral") +
+  labs(title = "Histogram of Price per Bed", x = "Price per Bed", y = "Count") +
+  theme_minimal()
+
+ggplot(Rent_num, aes(x = price_per_bath)) +
+  geom_histogram(binwidth = 200, color = "black", fill = "lightblue") +
+  labs(title = "Histogram of Price per Bed", x = "Price per Bed", y = "Count") +
+  theme_minimal()
+```
+
+# EDA Visualizations for Relationships Among Variables:
+
+```{r}
+ggplot(Rent_num, aes(x = sqft, y = price)) + 
+  geom_point(aes(color = price), alpha = 0.6) + 
+  scale_color_gradient(low = "blue", high = "red") + 
+  labs(
+    title = "Price vs. Square Footage",
+    x = "Square Footage",
+    y = "Price"
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "none")
+
+
+ggplot(Rent_num, aes(x = nhood, y = price)) +
+  geom_boxplot(fill = "lightblue", color = "blue", outlier.colour = "red") +
+  labs(title = "Price Distribution by Neighborhood", 
+       x = "Neighborhood", 
+       y = "Price") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(Rent_num, aes(x = sqft, y = price_per_sqft)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  labs(title = "Price per Square Foot vs. Square Footage",
+       x = "Square Footage",
+       y = "Price per Square Foot") +
+  theme_minimal()
+
+
+ggplot(Rent_num, aes(x = baths, y = price_per_bath)) +
+  geom_point(color = "green", alpha = 0.6) +
+  labs(title = "Price per Bath vs. Number of Baths",
+       x = "Number of Baths",
+       y = "Price per Bath") +
+  theme_minimal()
+```
+
+# Scale Numeric Features
+
+Standardize/normalize numeric features in dataset.
+
+```{r}
+numeric_cols <- Rent_num |> select(where(is.numeric)) |> names()
+Rent_num[numeric_cols] <- scale(Rent_num[numeric_cols])
+```
+
+# Correlation Analysis with the new features:
+
+```{r}
+numeric_complete_rent2 <- Rent_num %>% select(where(is.numeric))
+
+cor_matrix2 <- cor(numeric_complete_rent2, use = "pairwise.complete.obs")
 
 ggcorrplot(cor_matrix2, lab = TRUE)
 ```
@@ -513,8 +556,11 @@ Rent_factor_data %>%
   labs(title = "Hierarchical Clustering (Price vs. Sqft)", color = "Cluster")
 
 ```
+
 # K-means Clustering (trying to find meaningful clusters)
-- high rent areas (cities)
+
+-   high rent areas (cities)
+
 ```{r}
 library(cluster)
 
@@ -545,7 +591,9 @@ ggplot(Rent_price, aes(x = city, y = price, color = cluster)) +
 
 # clustered by scaled price and encoded cities
 ```
-# Clustering sqft by price: 
+
+# Clustering sqft by price:
+
 ```{r}
 set.seed(123)  
 k = 10  
@@ -563,7 +611,9 @@ ggplot(complete_Rent, aes(x = sqft, y = price, color = cluster)) +
 
 
 ```
-# Clustering Price by sqft: 
+
+# Clustering Price by sqft:
+
 ```{r}
 set.seed(123)  
 k = 10  
@@ -579,4 +629,3 @@ ggplot(complete_Rent, aes(x = price, y = sqft, color = cluster)) +
        y = "Price") +
   theme_minimal()
 ```
-
