@@ -400,71 +400,144 @@ cor_matrix2 <- cor(numeric_complete_rent2, use = "pairwise.complete.obs")
 ggcorrplot(cor_matrix2, lab = TRUE)
 ```
 
-# Data sets to use:
+# Data Set/Extra Cleanup for PCA:
 
-For predict neighborhood / county / city by price:\
+***For predict neighborhood / county / city by price:\
 Rent_price (190,618 x 8) --\> id, date, year, nhood, city, county,
-price, title
+price, title***
 
-For predicting price by square footage: Rent_cleaned_sqft (61,056 x 9)
---\> id, date, year, nhood, city, county, sqft, price, title
+***For predicting price by square footage: Rent_cleaned_sqft (61,056 x
+9) --\> id, date, year, nhood, city, county, sqft, price, title***
 
-For finding relationships between year and price: Rent_price (190,618 x
-8) --\> id, date, year, nhood, city, county, price, title
+***For finding relationships between year and price: Rent_price (190,618
+x 8) --\> id, date, year, nhood, city, county, price, title***
 
-For predicting \# of beds by price: Rent_price (190,618 x 8) --\> id,
-date, year, nhood, city, county, price, title
+***For predicting \# of beds by price: Rent_price (190,618 x 8) --\> id,
+date, year, nhood, city, county, price, title***
 
 ```{r}
-# Step 1: Select numeric columns for factor analysis
-Rent_factor_data <- Rent_for_PCA %>%
+Rent_analysis <- Rent_num |>
   select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
 
 # Step 2: Clean the data by handling NA and infinite values
 # Replace NA values with the column mean, and handle Inf values
-Rent_factor_data <- Rent_factor_data %>%
-  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+Rent_analysis <- Rent_analysis |>
+  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) |>
   mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
-  drop_na()
+  drop_na() 
 ```
 
 # PCA ANALYSIS:
 
-Engineer new features: - price_per_sqft = price / sqft --\>
+***NEED TO CHANGE WRITING BELOW:***
+
+***Engineer new features: - price_per_sqft = price / sqft --\>
 "Rent_cleaned_sqft" - price_per_bed = price / bed --\> "Rent_price" -
-price_per_bathroom = price / bath --\> "Rent_cleaned_baths"
+price_per_bathroom = price / bath --\> "Rent_cleaned_baths"***
 
-7 features to work with
+***7 features to work with***
 
-DF: Rent_for_PCA
+***DF: Rent_for_PCA***
+
+***CHANGE WRIITNG ABOVE:***
+
+## Perform PCA
+
+First standardize the data, then perform PCA, and view the PCA loadings.
+The PCA loadings (the relationship between original variables and
+principal components). This will help understand how each feature
+contributes to each principal component
 
 ```{r PCA}
-# Step 2: Standardize the data
-Rent_factor_data_scaled <- scale(Rent_factor_data)
+Rent_PCA <- Rent_analysis |>
+  select(where(~ !all(is.na(.))))
 
-# Step 3: Perform PCA
-pca_result <- prcomp(Rent_factor_data_scaled, center = TRUE, scale. = TRUE)
+Rent_PCA <- Rent_PCA |>
+  select(where(~ var(.) != 0))
 
-# Step 4: View the summary of PCA results
+Rent_PCA_scaled <- scale(Rent_PCA)
+
+pca_result <- prcomp(Rent_PCA_scaled, center = TRUE, scale. = TRUE)
+
+# Scree Plot using factoextra
+fviz_screeplot(pca_result, addlabels = TRUE, title = "Scree Plot")
+
 summary(pca_result)
 
-# Step 5: View the PCA loadings (the relationship between original variables and principal components)
 print(pca_result$rotation)
+```
 
-# Step 6: View the proportion of variance explained by each principal component
+## Proportion of Variance for each PC
+
+This tells you how much of the variability in the data is explained by
+each component
+
+```{r}
 proportion_variance <- summary(pca_result)$importance[2, ]
 print(proportion_variance)
+```
 
+## Visualize the first two PCs. 
 
-# Create a dataframe with PCA results
-pca_data <- data.frame(pca_result$x)  # Scores of the principal components
-
-# Plot the first two principal components
+```{r}
 ggplot(pca_data, aes(x = PC1, y = PC2)) +
-  geom_point(aes(color = Rent_factor_data$cluster)) +  # Use cluster for coloring (if clustering done)
+  geom_point(color = "blue", alpha = 0.6) +  
   theme_minimal() +
-  labs(title = "PCA: First vs. Second Principal Component", x = "Principal Component 1", y = "Principal Component 2")
+  labs(title = "PCA: First vs. Second Principal Component", 
+       x = "Principal Component 1", y = "Principal Component 2")
 
+
+barplot(pca_result$rotation[,1], las = 2, col = "darkblue", main = "Loadings for PC1")
+
+barplot(pca_result$rotation[,2], las = 2, col = "darkblue", main = "Loadings for PC2")
+```
+
+## Visualize the Variance of PCs.
+
+```{r}
+variance_explained <- summary(pca_result)$importance[2, ]
+ggplot(data.frame(PC = 1:length(variance_explained), Variance_Explained = variance_explained), 
+       aes(x = factor(PC), y = Variance_Explained)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Variance Explained by Each Principal Component", x = "Principal Component", y = "Variance Explained")
+```
+
+## Normalized
+
+```{r}
+sum(pca_result$rotation[,1]^2)
+```
+
+## Contribution of Variables to PCs
+
+```{r}
+fviz_contrib(pca_result, choice = "var", axes = 1, title = "Contribution of Variables to PC1")
+fviz_contrib(pca_result, choice = "var", axes = 2, title = "Contribution of Variables to PC2")
+
+```
+
+## PCA Bipolot
+
+```{r}
+fviz_pca_biplot(pca_result, repel = TRUE, title = "PCA Biplot")
+```
+
+## Create dataframe with results
+
+The principal components (scores) are stored in pca_result\$x, which we
+convert into a dataframe.
+
+```{r}
+pca_data <- data.frame(pca_result$x) 
+```
+
+## Individual Component Contributions
+
+```{r}
+top_PC1 <- rownames(pca_data)[order(pca_data$PC1, decreasing = TRUE)[1:10]]
+top_PC2 <- rownames(pca_data)[order(pca_data$PC2, decreasing = TRUE)[1:10]]
+print(top_PC1)
+print(top_PC2)
 ```
 
 # Factor Analysis:
@@ -474,8 +547,26 @@ Select relevant columns for factor analysis, only numeric ones:
 `sqft`, `beds`, and `bath.` We will use the Rent_for_PCA dataframe.
 
 ```{r}
-# Step 3: Run a Scree Plot to determine the number of factors
-fa.parallel(Rent_factor_data, fa = "fa")
+# Determine the optimal number of factors using parallel analysis
+fa.parallel(Rent_analysis, fa = "fa", n.iter = 100, show.legend = TRUE,
+            main = "Parallel Analysis Scree Plot")
+
+# Based on the output, choose the number of factors (assuming 3 here)
+factor_analysis <- fa(Rent_factor_data, nfactors = 3, rotate = "varimax")
+
+# View the factor loadings to interpret results
+print(factor_analysis$loadings)   
+print(factor_analysis)           
+
+#Visualize the factor loadings
+fa.diagram(factor_analysis, main = "Factor Analysis Diagram")
+
+
+```
+
+Other version:
+
+```{r}
 
 # Step 4: Perform factor analysis with the selected number of factors (assuming 3 factors)
 factor_analysis <- fa(Rent_factor_data, nfactors = 3, rotate = "varimax")
@@ -629,3 +720,7 @@ ggplot(complete_Rent, aes(x = price, y = sqft, color = cluster)) +
        y = "Price") +
   theme_minimal()
 ```
+
+# Citations
+
+1.  Session 1 and 2 Lab: Data Preprocessing and Visualization Notebook
