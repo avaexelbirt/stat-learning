@@ -546,33 +546,78 @@ Select relevant columns for factor analysis, only numeric ones:
 `price_per_sqft`, `price_per_bed`, and `price_per_bath`, `price`,
 `sqft`, `beds`, and `bath.` We will use the Rent_for_PCA dataframe.
 
+## Determine Optimal Number of Factors
+
 ```{r}
-# Determine the optimal number of factors using parallel analysis
 fa.parallel(Rent_analysis, fa = "fa", n.iter = 100, show.legend = TRUE,
             main = "Parallel Analysis Scree Plot")
-
-# Based on the output, choose the number of factors (assuming 3 here)
-factor_analysis <- fa(Rent_factor_data, nfactors = 3, rotate = "varimax")
-
-# View the factor loadings to interpret results
-print(factor_analysis$loadings)   
-print(factor_analysis)           
-
-#Visualize the factor loadings
-fa.diagram(factor_analysis, main = "Factor Analysis Diagram")
-
-
 ```
 
-Other version:
+## Perform FA with 3 factors
 
 ```{r}
-
-# Step 4: Perform factor analysis with the selected number of factors (assuming 3 factors)
-factor_analysis <- fa(Rent_factor_data, nfactors = 3, rotate = "varimax")
-
-# Step 5: View the factor loadings to interpret results
+factor_analysis <- fa(Rent_analysis, nfactors = 3, rotate = "varimax")
 print(factor_analysis)
+print(factor_analysis$loadings)
+```
+
+## Visualize Factor Analysis Structure 
+
+```{r}
+fa.diagram(factor_analysis, main = "Factor Analysis Diagram")
+```
+
+## Model Interpretation with MLE
+
+```{r}
+factanal_model <- factanal(Rent_analysis, factors = 3, rotation = "none")
+print(factanal_model)
+cbind(factanal_model$loadings, factanal_model$uniquenesses)
+```
+
+## Find Communalities and Uniquenesses
+
+```{r}
+communalities <- rowSums(factor_analysis$loadings^2)
+uniquenesses <- factor_analysis$uniquenesses
+data.frame(communalities, uniquenesses)
+```
+
+## Visualize Factor Loadings
+
+```{r}
+par(mfrow = c(3, 1))
+barplot(factor_analysis$loadings[,1], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 1 Loadings")
+barplot(factor_analysis$loadings[,2], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 2 Loadings")
+barplot(factor_analysis$loadings[,3], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 3 Loadings")
+```
+
+## Evaluate Variance with Sum of Squared Loadings
+
+```{r}
+SS_loadings <- colSums(factor_analysis$loadings^2)
+SS_loadings  
+```
+
+## Visualize Factor Scores
+
+```{r}
+factor_scores <- data.frame(date = Rent_analysis$date, factor_analysis$scores)
+library(ggplot2)
+factor_scores %>%
+  gather("factor", "score", -date) %>%
+  ggplot(aes(x = date, y = score)) + 
+  geom_line(size = 1) +
+  facet_wrap(~ factor, ncol = 1) +
+  theme_bw() +
+  labs(title = "Factor Scores Over Time", x = "", y = "Score")
+```
+
+## Oblimin Rotation for Correlated Factors
+
+```{r}
+factor_analysis_oblimin <- fa(Rent_analysis, nfactors = 3, rotate = "oblimin")
+print(factor_analysis_oblimin$loadings)
 
 ```
 
@@ -724,3 +769,5 @@ ggplot(complete_Rent, aes(x = price, y = sqft, color = cluster)) +
 # Citations
 
 1.  Session 1 and 2 Lab: Data Preprocessing and Visualization Notebook
+2.  Session 4 Lab: PCA_CaseStudy_NBA_students Notebook
+3.  Session 5 Lab: 2024_FA_CaseStudy_InterestRates_students Notebook
