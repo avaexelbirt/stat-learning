@@ -16,12 +16,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 knitr::opts_chunk$set(echo = TRUE)
-install.packages("tidytuesdayR")
-install.packages("ggcorrplot")
-install.packages("psych")
-install.packages("factoextra")
-install.packages("pheatmap")
-install.packages("dbscan")
+#install.packages("ggcorrplot")
+#install.packages("psych")
+#install.packages("factoextra")
+#install.packages("pheatmap")
+#install.packages("dbscan")
 library(dbscan)
 library(pheatmap)
 library(cluster)
@@ -688,6 +687,20 @@ location-based patterns - complete_rent
 
 ### Perform Clustering + Visualization
 
+
+```{r}
+Rent_factor_data <- Rent_num %>%
+  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
+
+Rent_factor_data <- Rent_factor_data %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+  mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
+  drop_na()
+
+Rent_factor_data
+```
+
+
 ```{r}
 Rent_factor_data_scaled <- scale(Rent_factor_data)
 
@@ -762,11 +775,11 @@ Rent_factor_data %>%
 ```{r}
 library(cluster)
 
-Rent_price <- Rent_price %>%
+Rent_cleaned <- Rent_cleaned %>%
   mutate(city = as.numeric(as.factor(city)))  
 
 
-data_scaled <- Rent_price %>%
+data_scaled <- Rent_cleaned %>%
   mutate(price = scale(price)) %>%
   select(price, city)  
 
@@ -777,10 +790,10 @@ k <- 8
 kmeans_result <- kmeans(data_scaled, centers = k)
 
 
-Rent_price$cluster <- as.factor(kmeans_result$cluster)
+Rent_cleaned$cluster <- as.factor(kmeans_result$cluster)
 
 
-ggplot(Rent_price, aes(x = city, y = price, color = cluster)) +
+ggplot(Rent_cleaned, aes(x = city, y = price, color = cluster)) +
   geom_point(size = 1) +
   labs(title = "Rent Clusters by Price and City",
        x = "City",
@@ -793,6 +806,9 @@ ggplot(Rent_price, aes(x = city, y = price, color = cluster)) +
 # Clustering sqft by price:
 
 ```{r}
+complete_Rent = Rent[complete.cases(Rent), ]
+complete_Rent
+
 set.seed(123)  
 k = 10  
 
@@ -924,15 +940,15 @@ ggplot(avg_sqft_per_nhood, aes(x = nhood, y = average_sqft, color = factor(clust
 ## Density Based Spatial Clustering of Applications with Noise (DBSCAN)
 
 ```{r}
-data_scaled <- Rent_price |>
+data_scaled <- Rent_cleaned |>
   mutate(price = scale(price), beds = scale(beds)) |>
   select(price, beds)
 
 dbscan_result <- dbscan(data_scaled, eps = 0.5, minPts = 5)
 
-Rent_price$dbscan_cluster <- as.factor(dbscan_result$cluster)
+Rent_cleaned$dbscan_cluster <- as.factor(dbscan_result$cluster)
 
-ggplot(Rent_price, aes(x = beds, y = price, color = dbscan_cluster)) +
+ggplot(Rent_cleaned, aes(x = beds, y = price, color = dbscan_cluster)) +
   geom_point(size = 1) +
   labs(title = "DBSCAN Clustering of Rent Prices and Square Feet", color = "Cluster") +
   theme_minimal()
@@ -944,9 +960,9 @@ ggplot(Rent_price, aes(x = beds, y = price, color = dbscan_cluster)) +
 ```{r}
 gmm_result <- Mclust(data_scaled)
 
-Rent_price$gmm_cluster <- as.factor(gmm_result$classification)
+Rent_cleaned$gmm_cluster <- as.factor(gmm_result$classification)
 
-ggplot(Rent_price, aes(x = beds, y = price, color = gmm_cluster)) +
+ggplot(Rent_cleaned, aes(x = beds, y = price, color = gmm_cluster)) +
   geom_point(size = 1) +
   labs(title = "GMM Clustering of Rent Prices and Beds", color = "Cluster") +
   theme_minimal()
