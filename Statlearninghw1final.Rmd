@@ -1,0 +1,1110 @@
+---
+title: "Statlearninghw1"
+author: "Sam Reade, Ava Exelbirt"
+date: "2024-11-08"
+output: html_document 
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Statistical Learning Homework 1:
+
+```{r libraries}
+#install libraries needed 
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("ggcorrplot")
+#install.packages("psych")
+#install.packages("factoextra")
+#install.packages("pheatmap")
+#install.packages("dbscan")
+library(dbscan)
+library(pheatmap)
+library(cluster)
+library(factoextra)
+library(psych)
+library(ggcorrplot)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(dendextend)
+library(reshape2)
+library(mclust)
+```
+
+# Data Processing Step
+
+Using a data set from TidyTueday that contains information about rent
+prices for San Fransisco houses. The data set contains information
+regarding date of rental, location of the house (like city and county
+for example), information regarding size of house, and price of rent.
+The original data set Rent had 200,769 observations among 17 variables.
+However, as part of our data preprocessing we chose to drop rows that
+contain NA values and drop rows that contain observations with outliers,
+as we want our data set to have the most thorough representatife data as
+possible. Considering there were still thousands of observations
+regarding rental prices in San Francisco, dropping these rows were a
+better choice than replacing their values, as we chose to only perform
+analysis on real data.
+
+The variables we chose to include in our model were year, neighborhood,
+city, county, price, beds, baths, soft, and title. Year is the year the
+house was on the market, neighborhood, city, and county outline the area
+the house is located in in San Fransisco, price is the rental price is
+US dollars per one month of rent, beds is the amount of bedrooms the
+house has, baths is the amount of bathrooms the house has, sqft is the
+amount of sqft the house has, and title is the title of the rental
+listing posting. We chose these variables because they are the most
+representative
+
+# Goals
+
+We are choosing to look at
+
+Goals: - predict neighborhood / county by price - predict price by
+square footage - find relationships between year and price - predict \#
+of beds by price or price by number of beds - maybe do something with
+embeddings for the titles for more info about home - correlate with
+price
+
+```{r}
+Rent_df = tidytuesdayR::tt_load('2022-07-05')
+```
+
+```{r}
+Rent = Rent_df$rent
+Permits = Rent_df$sf_permits
+Construction = Rent_df$new_construction
+```
+
+# Data Preprocessing:
+
+```{r}
+head(Rent)
+dim(Rent)
+```
+
+# Data Cleanup:
+
+```{r}
+# Check number of Duplicate Rows: 
+num_duplicates = sum(duplicated(Rent))
+print(num_duplicates)
+```
+
+# Checking unique values of categorical features:
+
+# Year values:
+
+```{r}
+unique_year = unique(as.factor(Rent$year))
+print(unique_year)
+
+years_count = table(Rent$year)
+print(years_count)
+```
+
+# Neighborhood values:
+
+```{r}
+unique_nhood = unique(as.factor(Rent$nhood))
+print(unique_nhood)
+
+nhood_count = table(Rent$nhood)
+print(nhood_count)
+
+# 167 nhoods
+```
+
+# City values:
+
+```{r}
+unique_city = unique(as.factor(Rent$city))
+print(unique_city)
+
+city_count = table(Rent$city)
+print(city_count)
+
+# 104 cities
+```
+
+# County values:
+
+```{r}
+unique_county = unique(as.factor(Rent$county))
+print(unique_county)
+
+county_count = table(Rent$county)
+print(county_count)
+
+# 10 counties
+```
+
+# Removing unnecessary columns:
+
+```{r}
+Rent = Rent %>% select(-room_in_apt, -lat, -lon, -address, -descr, -details)
+head(Rent)
+```
+
+# Checking count of rows with at least 1 NA value:
+
+```{r}
+count_na_rows = sum(apply(Rent, 1, function(x) any(is.na(x))))
+print(count_na_rows)
+```
+
+# Checking count of NA value in each column:
+
+```{r}
+na_count_year = sum(is.na(Rent$year))
+print(paste("NA count year:", na_count_year))
+
+na_count_nhood = sum(is.na(Rent$nhood))
+print(paste("NA count nhood:", na_count_nhood))
+
+na_count_city = sum(is.na(Rent$city))
+print(paste("NA count city:", na_count_city))
+
+na_count_county = sum(is.na(Rent$county))
+print(paste("NA count county:", na_count_county))
+
+na_count_price = sum(is.na(Rent$price))
+print(paste("NA count price:", na_count_price))
+
+na_count_beds = sum(is.na(Rent$beds))
+print(paste("NA count beds:", na_count_beds))
+
+na_count_baths = sum(is.na(Rent$baths))
+print(paste("NA count baths:", na_count_baths))
+
+na_count_sqft = sum(is.na(Rent$sqft))
+print(paste("NA count sqft:", na_count_sqft))
+
+na_count_title = sum(is.na(Rent$title))
+print(paste("NA count title:", na_count_title))
+
+```
+
+# Removing rows with NAs for title, county, beds, baths, and sqft
+
+```{r}
+Rent_cleaned <- Rent |>
+  filter(!is.na(title), !is.na(county), !is.na(beds), !is.na(baths), !is.na(sqft))
+
+Rent_cleaned
+```
+
+# Checking for complete rows (no NAs):
+
+```{r}
+complete_rows = sum(complete.cases(Rent))
+
+print(complete_rows)
+```
+
+# Checking for Outliers:
+
+```{r}
+
+detective = function(column) {
+
+  Q1 = quantile(column, 0.25, na.rm = TRUE)
+  Q3 = quantile(column, 0.75, na.rm = TRUE)
+  IQR = Q3 - Q1
+  
+  lower_bound = Q1 - 1.5 * IQR
+  upper_bound = Q3 + 1.5 * IQR
+  
+  outliers = column < lower_bound | column > upper_bound
+  
+  return(outliers)
+}
+
+price_outliers = detective(Rent_cleaned$price)
+num_outliers_price = sum(price_outliers)
+print(paste("Price outlier count:", num_outliers_price))
+
+bed_outliers = detective(Rent_cleaned$beds)
+num_outliers_bed = sum(bed_outliers)
+print(paste("Bed outlier count:", num_outliers_bed))
+
+sqft_outliers = detective(Rent_cleaned$sqft)
+num_outliers_sqft = sum(sqft_outliers)
+print(paste("sqft outlier count:", num_outliers_sqft))
+
+bath_outliers = detective(Rent_cleaned$baths)
+num_outliers_bath = sum(bath_outliers)
+print(paste("Bath outlier count:", num_outliers_bath))
+```
+
+# Visualizing outliers:
+
+```{r}
+boxplot(Rent_cleaned$price, 
+        main = "Box Plot of Rent Prices", 
+        ylab = "Price", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_cleaned$baths, 
+        main = "Box Plot of baths", 
+        ylab = "baths", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_cleaned$sqft, 
+        main = "Box Plot of sqft", 
+        ylab = "sqft", 
+        col = "lightblue",
+        outline = TRUE)  
+
+boxplot(Rent_cleaned$beds, 
+        main = "Box Plot of beds", 
+        ylab = "beds", 
+        col = "lightblue",
+        outline = TRUE)  
+
+
+```
+
+# Remove Outliers:
+
+```{r}
+Rent_cleaned <- Rent_cleaned |>
+  filter(
+    !detective(price),
+    !detective(beds),
+    !detective(baths),
+    !detective(sqft)
+  )
+```
+
+# Correlation Analysis:
+
+```{r}
+numeric_complete_rent <- Rent_cleaned |> select(where(is.numeric))
+
+cor_matrix = cor(numeric_complete_rent, use = "pairwise.complete.obs")
+
+ggcorrplot(cor_matrix, lab = TRUE)
+```
+
+# Histogram of Price:
+
+```{r}
+ggplot(Rent_cleaned, aes(x = price)) +
+  geom_histogram(binwidth = 250, color = "black", fill = "skyblue") +
+  labs(title = "Histogram of Price", x = "Price", y = "Count") +
+  theme_minimal() +
+  coord_cartesian(xlim = c(0, 20000))
+```
+
+# Histogram of sqft:
+
+```{r}
+ggplot(Rent_cleaned, aes(x = sqft)) +
+  geom_histogram(binwidth = 100, color = "black", fill = "skyblue") +
+  labs(title = "Histogram of Price", x = "sqft", y = "Count") +
+  theme_minimal() + 
+  coord_cartesian(xlim = c(0, 10000))
+```
+
+# Bar Plot of beds:
+
+```{r}
+ggplot(Rent_cleaned, aes(x = beds)) +
+  geom_bar(color = "black", fill = "skyblue") +
+  labs(title = "Bar Plot of beds", x = "Number of beds", y = "Count") +
+  theme_minimal()
+```
+
+# Bar Plot of baths:
+
+```{r}
+ggplot(Rent_cleaned, aes(x = baths)) +
+  geom_bar(color = "black", fill = "skyblue") +
+  labs(title = "Bar Plot of baths", x = "Number of baths", y = "Count") +
+  theme_minimal()
+```
+
+# Bar Plot for year:
+
+```{r}
+ggplot(Rent_cleaned, aes(x = factor(year))) +  
+  geom_bar(color = "black", fill = "skyblue") +  
+  labs(title = "Bar Plot of Year", x = "Year", y = "Count") +  
+  theme_minimal()
+```
+
+-   For nhood beware has some countys in it...
+
+# Feature Engineering:
+
+```{r}
+Rent_num = Rent_cleaned
+
+price_per_sqft = Rent_cleaned$price / Rent_cleaned$sqft 
+price_per_bed = Rent_cleaned$price / Rent_cleaned$beds
+price_per_bath = Rent_cleaned$price / Rent_cleaned$baths
+
+Rent_num$price_per_sqft = price_per_sqft
+Rent_num$price_per_bed = price_per_bed
+Rent_num$price_per_bath = price_per_bath
+
+Rent_num = Rent_num |> select(-title)
+
+Rent_num
+```
+
+# Visualizations of the New Features
+
+```{r}
+ggplot(Rent_num, aes(x = price_per_sqft)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "lightgreen") +
+  labs(title = "Histogram of Price per Sqft", x = "Price per Sqft", y = "Count") +
+  theme_minimal()
+
+ggplot(Rent_num, aes(x = price_per_bed)) +
+  geom_histogram(binwidth = 100, color = "black", fill = "lightcoral") +
+  labs(title = "Histogram of Price per Bed", x = "Price per Bed", y = "Count") +
+  theme_minimal()
+
+ggplot(Rent_num, aes(x = price_per_bath)) +
+  geom_histogram(binwidth = 200, color = "black", fill = "lightblue") +
+  labs(title = "Histogram of Price per Bed", x = "Price per Bed", y = "Count") +
+  theme_minimal()
+```
+
+# EDA Visualizations for Relationships Among Variables:
+
+```{r}
+ggplot(Rent_num, aes(x = sqft, y = price)) + 
+  geom_point(aes(color = price), alpha = 0.6) + 
+  scale_color_gradient(low = "blue", high = "red") + 
+  labs(
+    title = "Price vs. Square Footage",
+    x = "Square Footage",
+    y = "Price"
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "none")
+
+
+ggplot(Rent_num, aes(x = county, y = price)) +
+  geom_boxplot(fill = "lightblue", color = "blue", outlier.colour = "red") +
+  labs(title = "Price Distribution by county", 
+       x = "Neighborhood", 
+       y = "Price") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(Rent_num, aes(x = sqft, y = price_per_sqft)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  labs(title = "Price per Square Foot vs. Square Footage",
+       x = "Square Footage",
+       y = "Price per Square Foot") +
+  theme_minimal()
+
+
+ggplot(Rent_num, aes(x = baths, y = price_per_bath)) +
+  geom_point(color = "green", alpha = 0.6) +
+  labs(title = "Price per Bath vs. Number of Baths",
+       x = "Number of Baths",
+       y = "Price per Bath") +
+  theme_minimal()
+```
+
+# Scale Numeric Features
+
+Standardize/normalize numeric features in dataset.
+
+```{r}
+numeric_cols <- Rent_num |> select(where(is.numeric)) |> names()
+Rent_num[numeric_cols] <- scale(Rent_num[numeric_cols])
+```
+
+# Correlation Analysis with the new features:
+
+```{r}
+numeric_complete_rent2 <- Rent_num |> select(where(is.numeric))
+
+cor_matrix2 <- cor(numeric_complete_rent2, use = "pairwise.complete.obs")
+
+ggcorrplot(cor_matrix2, lab = TRUE)
+```
+
+# Data Set/Extra Cleanup for PCA:
+
+***For predict neighborhood / county / city by price:\
+Rent_price (190,618 x 8) --\> id, date, year, nhood, city, county,
+price, title***
+
+***For predicting price by square footage: Rent_cleaned_sqft (61,056 x
+9) --\> id, date, year, nhood, city, county, sqft, price, title***
+
+***For finding relationships between year and price: Rent_price (190,618
+x 8) --\> id, date, year, nhood, city, county, price, title***
+
+***For predicting \# of beds by price: Rent_price (190,618 x 8) --\> id,
+date, year, nhood, city, county, price, title***
+
+```{r}
+Rent_analysis <- Rent_num |>
+  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
+
+# Step 2: Clean the data by handling NA and infinite values
+# Replace NA values with the column mean, and handle Inf values
+Rent_analysis <- Rent_analysis |>
+  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) |>
+  mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
+  drop_na() 
+```
+
+# PCA ANALYSIS:
+
+***NEED TO CHANGE WRITING BELOW:***
+
+***Engineer new features: - price_per_sqft = price / sqft --\>
+"Rent_cleaned_sqft" - price_per_bed = price / bed --\> "Rent_price" -
+price_per_bathroom = price / bath --\> "Rent_cleaned_baths"***
+
+***7 features to work with***
+
+***DF: Rent_for_PCA***
+
+***CHANGE WRIITNG ABOVE:***
+
+## Perform PCA
+
+First standardize the data, then perform PCA, and view the PCA loadings.
+The PCA loadings (the relationship between original variables and
+principal components). This will help understand how each feature
+contributes to each principal component
+
+```{r PCA}
+Rent_PCA <- Rent_analysis |>
+  select(where(~ !all(is.na(.))))
+
+Rent_PCA <- Rent_PCA |>
+  select(where(~ var(.) != 0))
+
+Rent_PCA_scaled <- scale(Rent_PCA)
+
+pca_result <- prcomp(Rent_PCA_scaled, center = TRUE, scale. = TRUE)
+
+# Scree Plot using factoextra
+fviz_screeplot(pca_result, addlabels = TRUE, title = "Scree Plot")
+
+summary(pca_result)
+
+print(pca_result$rotation)
+```
+
+## Proportion of Variance for each PC
+
+This tells you how much of the variability in the data is explained by
+each component
+
+```{r}
+proportion_variance <- summary(pca_result)$importance[2, ]
+print(proportion_variance)
+```
+
+## Visualize the first two PCs.
+
+```{r}
+Rent_PCA_df = data.frame(PC1 = pca_result$x[, 1], PC2 = pca_result$x[, 2])
+Rent_PCA_df
+```
+
+```{r}
+ggplot(Rent_PCA_df, aes(x = PC1, y = PC2)) +
+  geom_point(color = "blue", alpha = 0.6) +  
+  theme_minimal() +
+  labs(title = "PCA: First vs. Second Principal Component", 
+       x = "Principal Component 1", y = "Principal Component 2")
+
+
+barplot(pca_result$rotation[,1], las = 2, col = "darkblue", main = "Loadings for PC1")
+
+barplot(pca_result$rotation[,2], las = 2, col = "darkblue", main = "Loadings for PC2")
+```
+
+## Visualize the Variance of PCs.
+
+```{r}
+variance_explained <- summary(pca_result)$importance[2, ]
+ggplot(data.frame(PC = 1:length(variance_explained), Variance_Explained = variance_explained), 
+       aes(x = factor(PC), y = Variance_Explained)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Variance Explained by Each Principal Component", x = "Principal Component", y = "Variance Explained")
+```
+
+## Normalized
+
+```{r}
+sum(pca_result$rotation[,1]^2)
+```
+
+## Contribution of Variables to PCs
+
+```{r}
+fviz_contrib(pca_result, choice = "var", axes = 1, title = "Contribution of Variables to PC1")
+fviz_contrib(pca_result, choice = "var", axes = 2, title = "Contribution of Variables to PC2")
+
+```
+
+## PCA Bipolot
+
+```{r}
+fviz_pca_biplot(pca_result, repel = TRUE, title = "PCA Biplot")
+                
+```
+
+## Create dataframe with results
+
+The principal components (scores) are stored in pca_result\$x, which we
+convert into a dataframe.
+
+```{r}
+pca_data <- data.frame(pca_result$x) 
+```
+
+## Individual Component Contributions
+
+```{r}
+top_PC1 <- rownames(pca_data)[order(pca_data$PC1, decreasing = TRUE)[1:10]]
+top_PC2 <- rownames(pca_data)[order(pca_data$PC2, decreasing = TRUE)[1:10]]
+print(top_PC1)
+print(top_PC2)
+```
+
+# Factor Analysis:
+
+Select relevant columns for factor analysis, only numeric ones:
+`price_per_sqft`, `price_per_bed`, and `price_per_bath`, `price`,
+`sqft`, `beds`, and `bath.` We will use the Rent_for_PCA dataframe.
+
+## Determine Optimal Number of Factors
+
+```{r}
+fa.parallel(Rent_analysis, fa = "fa", n.iter = 100, show.legend = TRUE,
+            main = "Parallel Analysis Scree Plot")
+```
+
+## Perform FA with 3 factors
+
+```{r}
+factor_analysis <- fa(Rent_analysis, nfactors = 3, rotate = "varimax")
+print(factor_analysis)
+print(factor_analysis$loadings)
+```
+
+## Visualize Factor Analysis Structure
+
+```{r}
+fa.diagram(factor_analysis, main = "Factor Analysis Diagram")
+```
+
+## Model Interpretation with MLE
+
+```{r}
+factanal_model <- factanal(Rent_analysis, factors = 3, rotation = "none")
+print(factanal_model)
+cbind(factanal_model$loadings, factanal_model$uniquenesses)
+```
+
+## Find Communalities and Uniquenesses
+
+```{r}
+communalities <- rowSums(factor_analysis$loadings^2)
+uniquenesses <- factor_analysis$uniquenesses
+data.frame(communalities, uniquenesses)
+```
+
+## Visualize Factor Loadings
+
+```{r}
+par(mfrow = c(3, 1))
+barplot(factor_analysis$loadings[,1], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 1 Loadings")
+barplot(factor_analysis$loadings[,2], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 2 Loadings")
+barplot(factor_analysis$loadings[,3], las = 2, col = "darkblue", ylim = c(-1, 1), main = "Factor 3 Loadings")
+```
+
+## Evaluate Variance with Sum of Squared Loadings
+
+```{r}
+SS_loadings <- colSums(factor_analysis$loadings^2)
+SS_loadings  
+```
+
+## Visualize Factor Scores
+
+```{r}
+factor_analysis_df = as.data.frame(factor_analysis$scores)
+factor_analysis_df
+```
+
+```{r}
+factor_scores <- data.frame(date = Rent_analysis$date, factor_analysis_df)
+library(ggplot2)
+factor_scores |>
+  gather("factor", "score", -date) |>
+  ggplot(aes(x = date, y = score)) + 
+  geom_line(linewidth = 1) +
+  facet_wrap(~ factor, ncol = 1) +
+  theme_bw() +
+  labs(title = "Factor Scores Over Time (2000-2018)", x = "", y = "Score")
+```
+
+## Oblimin Rotation for Correlated Factors
+
+```{r}
+factor_analysis_oblimin <- fa(Rent_analysis, nfactors = 3, rotate = "oblimin")
+print(factor_analysis_oblimin$loadings)
+
+#Check communalities for potential issues
+communalities <- rowSums(factor_analysis_oblimin$loadings^2)
+print(communalities)
+
+# Not sure what the issue is with this but need to be mindful it says they are probably incorrect
+```
+
+## Alternate Methods
+
+```{r}
+# Alternative rotation if needed
+factor_analysis_promax <- fa(Rent_analysis, nfactors = 3, rotate = "promax")
+print(factor_analysis_promax$loadings)
+
+#Principal Axis Factoring (PAF)
+factor_analysis_paf <- fa(Rent_analysis, nfactors = 3, fm = "pa")
+print(factor_analysis_paf$loadings)
+
+#Weighted Least Squares (WLS)
+factor_analysis_wls <- fa(Rent_analysis, nfactors = 3, fm = "wls")
+print(factor_analysis_wls$loadings)
+
+#Generalized Least Squares (GLS)
+factor_analysis_gls <- fa(Rent_analysis, nfactors = 3, fm = "gls")
+print(factor_analysis_gls$loadings)
+
+#Alpha Factoring 
+factor_analysis_alpha <- fa(Rent_analysis, nfactors = 3, fm = "alpha")
+print(factor_analysis_alpha$loadings)
+```
+
+....
+
+# CLUSTERING
+
+Property Segmentation: Cluster sqft, price, beds, and baths to group
+similar types of properties --\> clusters might represent luxury homes,
+small apartments, or family homes\
+- complete_Rent
+
+Market Segmentation by Location: Cluster based on city, county, or nhood
+combined with property attributes like price and sqft to find
+location-based patterns - complete_rent
+
+## K-Means Clustering with 3 clusters
+
+### Perform Clustering + Visualization
+
+```{r}
+Rent_factor_data <- Rent_num %>%
+  select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
+
+Rent_factor_data <- Rent_factor_data %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+  mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
+  drop_na()
+
+Rent_factor_data
+```
+
+```{r}
+Rent_factor_data_scaled <- scale(Rent_factor_data)
+
+set.seed(123)  
+kmeans_result1 <- kmeans(Rent_factor_data_scaled, centers = 4, nstart = 25) 
+print(kmeans_result1)  
+
+Rent_factor_data$cluster <- kmeans_result1$cluster
+
+Rent_factor_data |>
+  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering (Price vs. Sqft)", color = "Cluster")
+```
+
+### Silhouette Analysis for Optimal Clusters
+
+```{r}
+silhouette_score <- silhouette(kmeans_result1$cluster, dist(Rent_factor_data_scaled))
+plot(silhouette_score, main = "Silhouette Plot for K-means Clustering")
+```
+
+### Cluster Centers, Profiling, and Heatmap
+
+```{r}
+cluster_centers1 <- as.data.frame(kmeans_result1$centers)
+
+cluster_centers1$cluster <- as.factor(1:nrow(cluster_centers1))
+
+cluster_centers_numeric <- cluster_centers1[, -ncol(cluster_centers1)]  # Remove the last column (cluster)
+
+pheatmap(cluster_centers_numeric, main = "Cluster Centers Heatmap")
+
+
+cluster_profile <- Rent_factor_data %>%
+  group_by(cluster) %>%
+  summarise(across(c(price, sqft, beds, baths), 
+                   list(mean = ~mean(., na.rm = TRUE), 
+                        sd = ~sd(., na.rm = TRUE))))
+print(cluster_profile)
+
+cluster_centers_melt <- melt(cluster_centers1, id.vars = "cluster")
+
+ggplot(cluster_centers_melt, aes(x = cluster, y = variable, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = median(cluster_centers_melt$value)) +
+  labs(title = "Heatmap of Cluster Centers") +
+  theme_minimal()
+
+
+```
+
+## Hierarchical Clustering with 8 Clusters
+
+```{r}
+Rent_for_clusters = Rent_cleaned[, c("price", "sqft")]
+distance_matrix <- dist(Rent_for_clusters)
+
+hclust_result <- hclust(distance_matrix, method = "ward.D2")  
+
+dend <- as.dendrogram(hclust_result)
+dend <- color_branches(dend, k = 8)  
+plot(dend, main = "Colored Dendrogram for Hierarchical Clustering", xlab = "", ylab = "Height")
+
+hclust_clusters <- cutree(hclust_result, k = 8)
+Rent_for_clusters$cluster <- hclust_clusters
+
+Rent_for_clusters %>%
+  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Hierarchical Clustering (Price vs. Sqft)", color = "Cluster")
+
+```
+
+# K-means Clustering (trying to find meaningful clusters)
+
+-   high rent areas (cities)
+
+
+```{r}
+library(cluster)
+
+Rent_cleaned2 <- Rent_cleaned %>%
+  mutate(county = as.numeric(as.factor(county)))  
+
+
+data_scaled <- Rent_cleaned2 %>%
+  mutate(price = scale(price)) %>%
+  select(price, county)  
+
+
+set.seed(123)
+k <- 8 
+
+kmeans_result <- kmeans(data_scaled, centers = k)
+
+
+Rent_cleaned2$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(Rent_cleaned2, aes(x = county, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and county",
+       x = "county",
+       y = "Price") +
+  theme_minimal()
+
+# clustered by scaled price and encoded counties
+```
+
+```{r}
+library(cluster)
+
+Rent_cleaned2 <- Rent_cleaned %>%
+  mutate(county = as.numeric(as.factor(county)))  
+
+
+data_scaled <- Rent_cleaned2 %>%
+  mutate(sqft = scale(sqft)) %>%
+  select(sqft, county)  
+
+
+set.seed(123)
+k <- 8 
+
+kmeans_result <- kmeans(data_scaled, centers = k)
+
+
+Rent_cleaned2$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(Rent_cleaned2, aes(x = county, y = sqft, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and county",
+       x = "county",
+       y = "sqft") +
+  theme_minimal()
+
+# clustered by scaled sqft and encoded counties
+```
+
+# Clustering PC1 and PC2:
+```{r}
+set.seed(123)  
+k = 8  
+
+kmeans_result_pca = kmeans(Rent_PCA_df[, c("PC1", "PC2")], centers = k)
+
+Rent_PCA_df$cluster = as.factor(kmeans_result_pca$cluster)
+
+ggplot(Rent_PCA_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by PC1 and PC2",
+       x = "PC1",
+       y = "PC2") +
+  theme_minimal()
+```
+
+
+# Clustering sqft by price:
+
+```{r}
+set.seed(123)  
+k = 8  
+
+kmeans_result = kmeans(Rent_cleaned[, c("price", "sqft")], centers = k)
+
+Rent_cleaned$cluster = as.factor(kmeans_result$cluster)
+
+ggplot(Rent_cleaned, aes(x = sqft, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and Square Feet",
+       x = "Square Feet",
+       y = "Price") +
+  theme_minimal()
+
+
+```
+
+
+# Average Price per neighborhood:
+
+```{r}
+avg_price_per_nhood = Rent_cleaned %>%
+  group_by(nhood) %>%               
+  summarise(average_price = mean(price, na.rm = TRUE))  
+
+avg_price_per_nhood
+
+```
+# Most and least expensive neighborhoods on average by neighborhood:
+```{r}
+avg_price_per_nhood[which.max(avg_price_per_nhood$average_price), ]
+avg_price_per_nhood[which.min(avg_price_per_nhood$average_price), ]
+
+```
+
+# Average square feet per neighborhood:
+
+```{r}
+avg_sqft_per_nhood = Rent_cleaned %>%
+  group_by(nhood) %>%               
+  summarise(average_sqft = mean(sqft, na.rm = TRUE))  
+
+avg_sqft_per_nhood 
+```
+# biggest and smallest houses by sqft on average: 
+```{r}
+avg_sqft_per_nhood[which.max(avg_sqft_per_nhood$average_sqft), ]
+avg_sqft_per_nhood[which.min(avg_sqft_per_nhood$average_sqft), ]
+```
+
+
+# Elbow Method to determine ideal k for price:
+
+```{r}
+
+avg_scaled_data_price = scale(avg_price_per_nhood$average_price)
+
+
+wss <- sapply(1:10, function(k) {
+  kmeans(avg_scaled_data_price, centers = k, nstart = 25)$tot.withinss 
+})
+
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE, 
+     xlab = "Number of Clusters (k)", ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method for Optimal Number of Clusters (price)")
+
+```
+
+# Elbow Method to determine ideal k for square feet:
+
+```{r}
+avg_scaled_data_sqft = scale(avg_sqft_per_nhood$average_sqft)
+
+
+wss <- sapply(1:10, function(k) {
+  kmeans(avg_scaled_data_sqft, centers = k, nstart = 25)$tot.withinss 
+})
+
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE, 
+     xlab = "Number of Clusters (k)", ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method for Optimal Number of Clusters (sqft)")
+```
+
+# Neighborhoods clustered by average price:
+
+```{r}
+
+set.seed(123)
+
+kmeans_result = kmeans(avg_scaled_data_price, centers = 8)
+
+avg_price_per_nhood$cluster = kmeans_result$cluster
+
+print(avg_price_per_nhood)
+
+library(ggplot2)
+ggplot(avg_price_per_nhood, aes(x = nhood, y = average_price, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering of neighborhoods Based on Average Price", x = "nhood", y = "Average Price", color = "Cluster")
+
+```
+# Average price per cluster:
+```{r}
+
+avg_price_per_cluster = avg_price_per_nhood %>%
+  group_by(cluster) %>%
+  summarise(average_price_per_cluster = mean(average_price))
+
+print(avg_price_per_cluster)
+```
+
+
+# Neighborhoods clustered by average square feet:
+
+```{r}
+set.seed(123)
+
+kmeans_result = kmeans(avg_scaled_data_sqft, centers = 8)
+
+avg_sqft_per_nhood$cluster = kmeans_result$cluster
+
+print(avg_price_per_nhood)
+
+library(ggplot2)
+ggplot(avg_sqft_per_nhood, aes(x = nhood, y = average_sqft, color = factor(cluster))) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "K-means Clustering of neighborhoods Based on Average sqft", x = "nhood", y = "Average sqft", color = "Cluster")
+```
+# Average sqft per cluster: 
+```{r}
+avg_sqft_per_cluster = avg_sqft_per_nhood %>%
+  group_by(cluster) %>%
+  summarise(average_sqft_per_cluster = mean(average_sqft))
+
+print(avg_sqft_per_cluster)
+```
+
+
+
+```{r}
+Rent_cleaned_with_outliers <- Rent |>
+  filter(!is.na(title), !is.na(county), !is.na(beds), !is.na(baths), !is.na(sqft))
+
+Rent_cleaned_with_outliers
+```
+
+# PAM clustering (with outliers):
+```{r}
+Rent_cleaned_with_outliers =  Rent_cleaned_with_outliers %>%
+  select(price, sqft)
+
+pam_result = pam(Rent_cleaned_with_outliers, k = 3)
+
+print(pam_result$clustering)
+
+print(pam_result$medoids)
+
+
+Rent_cleaned_with_outliers_df = as.data.frame(Rent_cleaned_with_outliers)
+Rent_cleaned_with_outliers_df$cluster = as.factor(pam_result$clustering)
+
+
+ggplot(Rent_cleaned_with_outliers_df, aes(x = sqft, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  theme_minimal() +
+  labs(title = "PAM Clustering", x = "sqft", y = "price")
+
+```
+
+
+
+## Other Possible Methods
+
+## Density Based Spatial Clustering of Applications with Noise (DBSCAN)
+
+```{r}
+data_scaled <- Rent_cleaned |>
+  mutate(price = scale(price), beds = scale(beds)) |>
+  select(price, beds)
+
+dbscan_result <- dbscan(data_scaled, eps = 0.5, minPts = 5)
+
+Rent_cleaned$dbscan_cluster <- as.factor(dbscan_result$cluster)
+
+ggplot(Rent_cleaned, aes(x = beds, y = price, color = dbscan_cluster)) +
+  geom_point(size = 1) +
+  labs(title = "DBSCAN Clustering of Rent Prices and Square Feet", color = "Cluster") +
+  theme_minimal()
+
+```
+
+## Gaussian Mixture Models (GMM)
+
+```{r}
+gmm_result <- Mclust(data_scaled)
+
+Rent_cleaned$gmm_cluster <- as.factor(gmm_result$classification)
+
+ggplot(Rent_cleaned, aes(x = beds, y = price, color = gmm_cluster)) +
+  geom_point(size = 1) +
+  labs(title = "GMM Clustering of Rent Prices and Beds", color = "Cluster") +
+  theme_minimal()
+```
+
+# Citations
+
+1.  Session 1 and 2 Lab: Data Preprocessing and Visualization Notebook
+2.  Session 4 Lab: PCA_CaseStudy_NBA_students Notebook
+3.  Session 5 Lab: 2024_FA_CaseStudy_InterestRates_students Notebook
+4.  Session 6 Lab: Clustering_WHO_2024_students Notebook
+5.  Pennington, Kate (2018). Bay Area Craigslist Rental Housing Posts,
+    2000-2018. Retrieved from
+    <https://github.com/katepennington/historic_bay_area_craigslist_housing_posts/blob/master/clean_2000_2018.csv.zip>.
