@@ -80,7 +80,7 @@ Permits = Rent_df$sf_permits
 Construction = Rent_df$new_construction
 ```
 
-# Data Preprocessing:
+# DATA PREPROCESSING:
 
 ```{r}
 head(Rent)
@@ -596,7 +596,7 @@ print(top_PC1)
 print(top_PC2)
 ```
 
-# Factor Analysis:
+# FACTOR ANALYSIS:
 
 We will use the Rent_analysis dataframe that has the variables
 `price_per_sqft`, `price_per_bed`, and `price_per_bath`, `price`,
@@ -725,26 +725,19 @@ factor_scores |>
 
 ....
 
-# CLUSTERING
+# CLUSTERING:
 
-Property Segmentation: Cluster sqft, price, beds, and baths to group
-similar types of properties --\> clusters might represent luxury homes,
-small apartments, or family homes\
-- complete_Rent
+### Make Dataframe
 
-Market Segmentation by Location: Cluster based on city, county, or nhood
-combined with property attributes like price and sqft to find
-location-based patterns - complete_rent
-
-## K-Means Clustering with 3 clusters
-
-### Perform Clustering + Visualization
+Clean up the data set, make sure there are no NA values or infinite
+values. Choose the variables we want.
 
 ```{r}
-Rent_factor_data <- Rent_num %>%
+#cleanup data for clustering
+Rent_factor_data <- Rent_num |>
   select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
 
-Rent_factor_data <- Rent_factor_data %>%
+Rent_factor_data <- Rent_factor_data |>
   mutate(across(everything(), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
   mutate(across(everything(), ~ ifelse(is.infinite(.), NA, .))) %>%
   drop_na()
@@ -752,60 +745,66 @@ Rent_factor_data <- Rent_factor_data %>%
 Rent_factor_data
 ```
 
+## Elbow Plot for Price vs Sqft
+
+Use the elbow plot to determine the best number of clusters to use. The
+elbow plot helps identify the optimal number of clusters by looking for
+the "elbow" in the plot:
+
 ```{r}
-Rent_factor_data_scaled <- scale(Rent_factor_data)
+set.seed(123)
 
-set.seed(123)  
-kmeans_result1 <- kmeans(Rent_factor_data_scaled, centers = 4, nstart = 25) 
-print(kmeans_result1)  
+# Calculate WSS for different numbers of clusters
+wss <- sapply(1:10, function(k) {
+  kmeans(Rent_cleaned[, c("price", "sqft")], centers = k, nstart = 25)$tot.withinss
+})
 
-Rent_factor_data$cluster <- kmeans_result1$cluster
-
-Rent_factor_data |>
-  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+# Create an elbow plot
+elbow_plot <- ggplot(data.frame(K = 1:10, WSS = wss), aes(x = K, y = WSS)) +
+  geom_line() +
   geom_point() +
-  theme_minimal() +
-  labs(title = "K-means Clustering (Price vs. Sqft)", color = "Cluster")
+  labs(title = "Elbow Plot for Optimal Clusters",
+       x = "Number of Clusters",
+       y = "Within-cluster Sum of Squares") +
+  theme_minimal()
+
+# Print the elbow plot
+print(elbow_plot)
+
 ```
 
-### Silhouette Analysis for Optimal Clusters
+Based on the elbow plot above, we can see that the most optimal amount
+of clusters is 8.
+
+## K-Means Clustering sqft by price:
+
+We will now cluster square foot by price using 8 clusters based on the
+above elbow plot.
 
 ```{r}
-silhouette_score <- silhouette(kmeans_result1$cluster, dist(Rent_factor_data_scaled))
-plot(silhouette_score, main = "Silhouette Plot for K-means Clustering")
-```
+set.seed(123)  
+k = 8  
 
-### Cluster Centers, Profiling, and Heatmap
+kmeans_result = kmeans(Rent_cleaned[, c("price", "sqft")], centers = k)
 
-```{r}
-cluster_centers1 <- as.data.frame(kmeans_result1$centers)
+Rent_cleaned$cluster = as.factor(kmeans_result$cluster)
 
-cluster_centers1$cluster <- as.factor(1:nrow(cluster_centers1))
-
-cluster_centers_numeric <- cluster_centers1[, -ncol(cluster_centers1)]  # Remove the last column (cluster)
-
-pheatmap(cluster_centers_numeric, main = "Cluster Centers Heatmap")
-
-
-cluster_profile <- Rent_factor_data %>%
-  group_by(cluster) %>%
-  summarise(across(c(price, sqft, beds, baths), 
-                   list(mean = ~mean(., na.rm = TRUE), 
-                        sd = ~sd(., na.rm = TRUE))))
-print(cluster_profile)
-
-cluster_centers_melt <- melt(cluster_centers1, id.vars = "cluster")
-
-ggplot(cluster_centers_melt, aes(x = cluster, y = variable, fill = value)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = median(cluster_centers_melt$value)) +
-  labs(title = "Heatmap of Cluster Centers") +
+ggplot(Rent_cleaned, aes(x = sqft, y = price, color = cluster)) +
+  geom_point(size = 1) +
+  labs(title = "Rent Clusters by Price and Square Feet",
+       x = "Square Feet",
+       y = "Price") +
   theme_minimal()
 
 
 ```
 
 ## Hierarchical Clustering with 8 Clusters
+
+Using 8 clusters again, we will now calculate the clusters of square
+foot and price, this time with hierarchical clusters. Since the above
+plot showed meaningful interpretations using 8 clusters, we will
+continue to use 8 clusters for hierarchical and k-mean clusters.
 
 ```{r}
 Rent_for_clusters = Rent_cleaned[, c("price", "sqft")]
@@ -821,16 +820,14 @@ hclust_clusters <- cutree(hclust_result, k = 8)
 Rent_for_clusters$cluster <- hclust_clusters
 
 Rent_for_clusters %>%
-  ggplot(aes(x = price, y = sqft, color = factor(cluster))) +
+  ggplot(aes(x = sqft, y = price, color = factor(cluster))) +
   geom_point() +
   theme_minimal() +
   labs(title = "Hierarchical Clustering (Price vs. Sqft)", color = "Cluster")
 
 ```
 
-# K-means Clustering (trying to find meaningful clusters)
-
--   high rent areas (cities)
+## K-means Clustering County and Price
 
 ```{r}
 library(cluster)
@@ -859,9 +856,9 @@ ggplot(Rent_cleaned2, aes(x = county, y = price, color = cluster)) +
        x = "county",
        y = "Price") +
   theme_minimal()
-
-# clustered by scaled price and encoded counties
 ```
+
+## K-means Clustering County and Square Foot
 
 ```{r}
 library(cluster)
@@ -894,7 +891,11 @@ ggplot(Rent_cleaned2, aes(x = county, y = sqft, color = cluster)) +
 # clustered by scaled sqft and encoded counties
 ```
 
-# Clustering PC1 and PC2:
+## Clustering PC1 and PC2:
+
+We will now perform K-means clustering on the principal components
+derived from the PCA and visualize the clustering results using a
+scatter plot of the first two principal components.
 
 ```{r}
 set.seed(123)  
@@ -912,27 +913,9 @@ ggplot(Rent_PCA_df, aes(x = PC1, y = PC2, color = cluster)) +
   theme_minimal()
 ```
 
-# Clustering sqft by price:
+# Summary Statistics Preparing to Cluster
 
-```{r}
-set.seed(123)  
-k = 8  
-
-kmeans_result = kmeans(Rent_cleaned[, c("price", "sqft")], centers = k)
-
-Rent_cleaned$cluster = as.factor(kmeans_result$cluster)
-
-ggplot(Rent_cleaned, aes(x = sqft, y = price, color = cluster)) +
-  geom_point(size = 1) +
-  labs(title = "Rent Clusters by Price and Square Feet",
-       x = "Square Feet",
-       y = "Price") +
-  theme_minimal()
-
-
-```
-
-# Average Price per neighborhood:
+## Average Price per neighborhood:
 
 ```{r}
 avg_price_per_nhood = Rent_cleaned %>%
@@ -943,7 +926,7 @@ avg_price_per_nhood
 
 ```
 
-# Most and least expensive neighborhoods on average by neighborhood:
+## Most and least expensive neighborhoods on average by neighborhood:
 
 ```{r}
 avg_price_per_nhood[which.max(avg_price_per_nhood$average_price), ]
@@ -951,7 +934,7 @@ avg_price_per_nhood[which.min(avg_price_per_nhood$average_price), ]
 
 ```
 
-# Average square feet per neighborhood:
+## Average square feet per neighborhood:
 
 ```{r}
 avg_sqft_per_nhood = Rent_cleaned %>%
@@ -961,14 +944,19 @@ avg_sqft_per_nhood = Rent_cleaned %>%
 avg_sqft_per_nhood 
 ```
 
-# biggest and smallest houses by sqft on average:
+## Biggest and Smallest houses by sqft on average:
 
 ```{r}
 avg_sqft_per_nhood[which.max(avg_sqft_per_nhood$average_sqft), ]
 avg_sqft_per_nhood[which.min(avg_sqft_per_nhood$average_sqft), ]
 ```
 
-# Elbow Method to determine ideal k for price:
+# Clustering For Neighborhood Averages
+
+We will use the elbow method again to find the value of k that is ideal
+for clustering the data set based on the neighborhood values.
+
+## Elbow Method to determine ideal k for price:
 
 ```{r}
 
@@ -985,7 +973,7 @@ plot(1:10, wss, type = "b", pch = 19, frame = FALSE,
 
 ```
 
-# Elbow Method to determine ideal k for square feet:
+## Elbow Method to determine ideal k for square feet:
 
 ```{r}
 avg_scaled_data_sqft = scale(avg_sqft_per_nhood$average_sqft)
@@ -1000,7 +988,7 @@ plot(1:10, wss, type = "b", pch = 19, frame = FALSE,
      main = "Elbow Method for Optimal Number of Clusters (sqft)")
 ```
 
-# Neighborhoods clustered by average price:
+## Neighborhoods clustered by average price:
 
 ```{r}
 
@@ -1020,7 +1008,7 @@ ggplot(avg_price_per_nhood, aes(x = nhood, y = average_price, color = factor(clu
 
 ```
 
-# Average price per cluster:
+## Average price per cluster:
 
 ```{r}
 
@@ -1031,7 +1019,7 @@ avg_price_per_cluster = avg_price_per_nhood %>%
 print(avg_price_per_cluster)
 ```
 
-# Neighborhoods clustered by average square feet:
+## Neighborhoods clustered by average square feet:
 
 ```{r}
 set.seed(123)
@@ -1049,7 +1037,7 @@ ggplot(avg_sqft_per_nhood, aes(x = nhood, y = average_sqft, color = factor(clust
   labs(title = "K-means Clustering of neighborhoods Based on Average sqft", x = "nhood", y = "Average sqft", color = "Cluster")
 ```
 
-# Average sqft per cluster:
+## Average sqft per cluster:
 
 ```{r}
 avg_sqft_per_cluster = avg_sqft_per_nhood %>%
@@ -1066,7 +1054,12 @@ Rent_cleaned_with_outliers <- Rent |>
 Rent_cleaned_with_outliers
 ```
 
-# PAM clustering (with outliers):
+# More Analysis on Clusters
+
+## PAM Clustering:
+
+This is similar to K-means clustering but uses medoids instead of
+centroids as the cluster representatives.
 
 ```{r}
 Rent_cleaned_with_outliers =  Rent_cleaned_with_outliers %>%
@@ -1089,6 +1082,47 @@ ggplot(Rent_cleaned_with_outliers_df, aes(x = sqft, y = price, color = cluster))
   labs(title = "PAM Clustering", x = "sqft", y = "price")
 
 ```
+
+## Cluster Centers, Profiling, and Heatmap
+
+```{r}
+set.seed(123)
+
+kmeans_result_seven = kmeans(Rent_factor_data, centers = 3)
+
+data_scaled_seven$cluster = kmeans_result$cluster
+```
+
+```{r}
+cluster_centers <- as.data.frame(kmeans_result_seven$centers)
+
+# Add a 'cluster' column to represent cluster number
+cluster_centers$cluster <- as.factor(1:nrow(cluster_centers))
+
+# Exclude the 'cluster' column from the heatmap data
+cluster_centers_numeric <- cluster_centers[, -ncol(cluster_centers)]  # Remove the last column (cluster)
+
+# Create heatmap of cluster centers (only numeric columns)
+pheatmap(cluster_centers_numeric, main = "Cluster Centers Heatmap")
+
+cluster_profile <- Rent_factor_data |>
+  group_by(cluster) |>
+  summarise(across(c(price, sqft, beds, baths), list(mean = mean, sd = sd), na.rm = TRUE))
+print(cluster_profile)
+
+cluster_centers_melt <- melt(cluster_centers, id.vars = "cluster")
+
+ggplot(cluster_centers_melt, aes(x = cluster, y = variable, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = median(cluster_centers_melt$value)) +
+  labs(title = "Heatmap of Cluster Centers") +
+  theme_minimal()
+
+
+
+```
+
+# 
 
 # Citations
 
