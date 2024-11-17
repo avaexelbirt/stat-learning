@@ -14,13 +14,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Statistical Learning Homework 1:
 
-```{r}
+```{r libraries}
+#install libraries needed 
 knitr::opts_chunk$set(echo = TRUE)
-#install.packages("ggcorrplot")
-#install.packages("psych")
-#install.packages("factoextra")
-#install.packages("pheatmap")
-#install.packages("dbscan")
+install.packages("ggcorrplot")
+install.packages("psych")
+install.packages("factoextra")
+install.packages("pheatmap")
+install.packages("dbscan")
 library(dbscan)
 library(pheatmap)
 library(cluster)
@@ -34,6 +35,35 @@ library(dendextend)
 library(reshape2)
 library(mclust)
 ```
+
+# Data Processing Step
+
+Using a data set from TidyTueday that contains information about rent
+prices for San Fransisco houses. The data set contains information
+regarding date of rental, location of the house (like city and county
+for example), information regarding size of house, and price of rent.
+The original data set Rent had 200,769 observations among 17 variables.
+However, as part of our data preprocessing we chose to drop rows that
+contain NA values and drop rows that contain observations with outliers,
+as we want our data set to have the most thorough representatife data as
+possible. Considering there were still thousands of observations
+regarding rental prices in San Francisco, dropping these rows were a
+better choice than replacing their values, as we chose to only perform
+analysis on real data.
+
+The variables we chose to include in our model were year, neighborhood,
+city, county, price, beds, baths, soft, and title. Year is the year the
+house was on the market, neighborhood, city, and county outline the area
+the house is located in in San Fransisco, price is the rental price is
+US dollars per one month of rent, beds is the amount of bedrooms the
+house has, baths is the amount of bathrooms the house has, sqft is the
+amount of sqft the house has, and title is the title of the rental
+listing posting. We chose these variables because they are the most
+representative
+
+# Goals
+
+We are choosing to look at
 
 Goals: - predict neighborhood / county by price - predict price by
 square footage - find relationships between year and price - predict \#
@@ -687,7 +717,6 @@ location-based patterns - complete_rent
 
 ### Perform Clustering + Visualization
 
-
 ```{r}
 Rent_factor_data <- Rent_num %>%
   select(price, sqft, beds, baths, price_per_sqft, price_per_bed, price_per_bath)
@@ -699,7 +728,6 @@ Rent_factor_data <- Rent_factor_data %>%
 
 Rent_factor_data
 ```
-
 
 ```{r}
 Rent_factor_data_scaled <- scale(Rent_factor_data)
@@ -974,3 +1002,6 @@ ggplot(Rent_cleaned, aes(x = beds, y = price, color = gmm_cluster)) +
 2.  Session 4 Lab: PCA_CaseStudy_NBA_students Notebook
 3.  Session 5 Lab: 2024_FA_CaseStudy_InterestRates_students Notebook
 4.  Session 6 Lab: Clustering_WHO_2024_students Notebook
+5.  Pennington, Kate (2018). Bay Area Craigslist Rental Housing Posts,
+    2000-2018. Retrieved from
+    <https://github.com/katepennington/historic_bay_area_craigslist_housing_posts/blob/master/clean_2000_2018.csv.zip>.
