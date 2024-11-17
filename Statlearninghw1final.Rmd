@@ -1088,41 +1088,43 @@ ggplot(Rent_cleaned_with_outliers_df, aes(x = sqft, y = price, color = cluster))
 ```{r}
 set.seed(123)
 
-kmeans_result_seven = kmeans(Rent_factor_data, centers = 3)
+kmeans_result_seven = kmeans(Rent_factor_data, centers = 4)
 
 data_scaled_seven$cluster = kmeans_result$cluster
 ```
 
+These visualizations and summaries allow you to interpret clusters from
+your K-means result by exploring the central tendencies (cluster
+centers), how variables differentiate between clusters, and which
+clusters are most distinct based on their profiles.
+
 ```{r}
+Rent_factor_data$cluster <- kmeans_result_seven$cluster
+
+# Cluster centers heatmap
 cluster_centers <- as.data.frame(kmeans_result_seven$centers)
-
-# Add a 'cluster' column to represent cluster number
 cluster_centers$cluster <- as.factor(1:nrow(cluster_centers))
-
-# Exclude the 'cluster' column from the heatmap data
-cluster_centers_numeric <- cluster_centers[, -ncol(cluster_centers)]  # Remove the last column (cluster)
-
-# Create heatmap of cluster centers (only numeric columns)
+cluster_centers_numeric <- cluster_centers[, -ncol(cluster_centers)]
 pheatmap(cluster_centers_numeric, main = "Cluster Centers Heatmap")
 
+# Cluster profile
 cluster_profile <- Rent_factor_data |>
   group_by(cluster) |>
-  summarise(across(c(price, sqft, beds, baths), list(mean = mean, sd = sd), na.rm = TRUE))
+  summarise(across(c(price, sqft, beds, baths), 
+                   list(mean = ~mean(., na.rm = TRUE), 
+                        sd = ~sd(., na.rm = TRUE))))
 print(cluster_profile)
 
+# Melt and plot heatmap
 cluster_centers_melt <- melt(cluster_centers, id.vars = "cluster")
-
 ggplot(cluster_centers_melt, aes(x = cluster, y = variable, fill = value)) +
   geom_tile() +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = median(cluster_centers_melt$value)) +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = median(cluster_centers_melt$value)) +
   labs(title = "Heatmap of Cluster Centers") +
   theme_minimal()
 
-
-
 ```
-
-# 
 
 # Citations
 
